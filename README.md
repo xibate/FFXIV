@@ -61,7 +61,7 @@ For example `{hp} | {hp:pct}%` shows `64.2k | 50%`.
    then tick **Enabled** and press **Save and Close**.
 2. Open `/xlplugins`, search for **LucentUI** and install it. Updates arrive like any other plugin.
 
-Publishing a new version: bump `<Version>` in `LucentUI/LucentUI.csproj` and `AssemblyVersion` in `repo.json` together, then push a matching tag (for example `git tag v0.2.0.0 && git push origin v0.2.0.0`). The GitHub Action builds the plugin and attaches `latest.zip` to a release, which is what the installer downloads.
+Publishing a new version: bump `<Version>` in `LucentUI/LucentUI.csproj` and `AssemblyVersion` in `repo.json` to the same number and push to the default branch. The GitHub Action builds the plugin and publishes a release `v<version>` with `latest.zip`, which is what the installer downloads. The build fails if the two numbers differ.
 
 ### As a dev plugin (for development)
 

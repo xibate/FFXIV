@@ -3,7 +3,6 @@ name: Build
 on:
   push:
     branches: ["**"]
-    tags: ["v*"]
   pull_request:
 
 permissions:
@@ -26,6 +25,18 @@ jobs:
           curl -sSL https://goatcorp.github.io/dalamud-distrib/latest.zip -o dalamud.zip
           unzip -oq dalamud.zip -d ~/.xlcore/dalamud/Hooks/dev
 
+      # The installer compares repo.json's version with the plugin's, so they must match.
+      - name: Read version
+        id: version
+        run: |
+          version=$(grep -oPm1 '(?<=<Version>)[^<]+' LucentUI/LucentUI.csproj)
+          repo=$(grep -oPm1 '(?<="AssemblyVersion": ")[^"]+' repo.json)
+          if [ "$version" != "$repo" ]; then
+            echo "::error::LucentUI.csproj is $version but repo.json says $repo. Update both."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Build
         run: dotnet build LucentUI.slnx -c Release
 
@@ -34,9 +45,25 @@ jobs:
           name: LucentUI
           path: LucentUI/bin/Release/LucentUI/
 
-      # Pushing a tag like v0.1.0.0 publishes a release that the custom repo (repo.json) installs from.
+      # On the default branch, publish a release for each new version. This is what the
+      # custom plugin repository (repo.json) downloads from.
+      - name: Check for an existing release
+        id: existing
+        if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.version.outputs.version }}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.existing.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: LucentUI ${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
           files: LucentUI/bin/Release/LucentUI/latest.zip
