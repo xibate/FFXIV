@@ -1,0 +1,20 @@
+[
+  {
+    "Author": "xibate",
+    "Name": "LucentUI",
+    "InternalName": "LucentUI",
+    "AssemblyVersion": "0.1.0.0",
+    "Punchline": "A clean, modern and modular HUD replacement.",
+    "Description": "LucentUI replaces the default HUD with clean, flat unit frames, cast bars, auras and party frames. Everything can be moved in Unlock Mode, styled from one place, and saved into profiles that switch automatically per job. Inspired by EllesmereUI for World of Warcraft.",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/xibate/FFXIV",
+    "Tags": ["UI", "HUD", "unitframes", "party", "castbar"],
+    "DalamudApiLevel": 15,
+    "LoadPriority": 0,
+    "IsHide": false,
+    "IsTestingExclusive": false,
+    "DownloadLinkInstall": "https://github.com/xibate/FFXIV/releases/latest/download/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xibate/FFXIV/releases/latest/download/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xibate/FFXIV/releases/latest/download/latest.zip"
+  }
+]

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <Version>0.1.0.0</Version>
+    <!-- Manifest fields picked up by DalamudPackager -->
+    <Author>xibate</Author>
+    <Name>LucentUI</Name>
+    <Punchline>A clean, modern and modular HUD replacement.</Punchline>
+    <Description>LucentUI replaces the default HUD with clean, flat unit frames, cast bars, auras and party frames.
+Everything can be moved in Unlock Mode, styled from one place, and saved into profiles that switch automatically per job.
+Inspired by EllesmereUI for World of Warcraft.</Description>
+    <RepoUrl>https://github.com/xibate/FFXIV</RepoUrl>
+    <Tags>UI;HUD;unitframes;party;castbar</Tags>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+</Project>

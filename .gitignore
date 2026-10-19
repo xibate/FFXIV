@@ -1,0 +1,11 @@
+## Build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
+
+## Packaged plugin
+latest.zip
