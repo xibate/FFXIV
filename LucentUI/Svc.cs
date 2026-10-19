@@ -24,4 +24,5 @@ internal sealed class Svc
     [PluginService] public static IJobGauges JobGauges { get; private set; } = null!;
     [PluginService] public static IGameInteropProvider Interop { get; private set; } = null!;
     [PluginService] public static IDutyState DutyState { get; private set; } = null!;
+    [PluginService] public static INamePlateGui NamePlateGui { get; private set; } = null!;
 }

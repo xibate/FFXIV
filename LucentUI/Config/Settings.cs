@@ -280,8 +280,10 @@ public sealed class PartySettings
     public int PowerHeight = 4;
     public string LeftText = "{name:14}";
     public string RightText = "{hp:pct}%";
+    public string CenterText = string.Empty;
     public TextStyle LeftStyle = new();
     public TextStyle RightStyle = new();
+    public TextStyle CenterStyle = new();
     public HealthColorMode ColorMode = HealthColorMode.Inherit;
     public bool ShowShield = true;
     public bool RangeFade = true;
@@ -348,6 +350,9 @@ public sealed class CooldownBarSettings
     public int Spacing = 2;
     public int Rows = 1;
 
+    /// <summary>Icons per row; 0 splits the icons evenly over <see cref="Rows"/>.</summary>
+    public int PerRow = 0;
+
     /// <summary>Icons the bar's box is sized for; icons are aligned inside it.</summary>
     public int MaxIcons = 10;
     public BarAlign Align = BarAlign.Center;
@@ -402,22 +407,72 @@ public sealed class PartyCooldownSettings
     public VisibilitySettings Visibility = new();
 }
 
+public enum GameNameplateMode
+{
+    /// <summary>Leave the game's nameplates alone.</summary>
+    Keep,
+
+    /// <summary>Remove the game's name text from units that get a LucentUI plate (markers and other names stay).</summary>
+    HideReplaced,
+
+    /// <summary>Hide the game's nameplate window completely.</summary>
+    HideAll,
+}
+
+public enum PlateMode
+{
+    Hidden,
+    NameOnly,
+    Bar,
+}
+
 public sealed class NameplateSettings
 {
     public bool Enabled = true;
-    public Vector2 Size = new(120, 10);
-    public bool ShowEnemies = true;
+
+    // Who gets a plate, and what kind.
+    public PlateMode Enemies = PlateMode.Bar;
+    public PlateMode Players = PlateMode.NameOnly;
+    public PlateMode FriendlyNpcs = PlateMode.Hidden;
     public bool EnemiesOnlyInCombat = false;
-    public bool ShowPlayers = false;
-    public bool ShowFriendlyNpcs = false;
-    public bool ShowName = true;
-    public bool ShowLevel = true;
-    public bool ShowHealthText = true;
-    public bool ShowCast = true;
-    public bool HighlightTarget = true;
+    public bool ShowSelf = false;
+
+    /// <summary>Only units the game itself would give a nameplate (respects line of sight and the game's settings).</summary>
+    public bool FollowGameNameplates = true;
     public float MaxDistance = 40f;
+    public GameNameplateMode GameNameplates = GameNameplateMode.HideReplaced;
+
+    // Bar plates.
+    public Vector2 Size = new(180, 16);
+    public string LeftText = "{name}";
+    public string RightText = "{hp:pct}%";
+    public TextStyle LeftStyle = new() { Offset = new Vector2(0, -16) };
+    public TextStyle RightStyle = new() { Offset = new Vector2(0, -16) };
+    public string CenterText = string.Empty;
+    public TextStyle CenterStyle = new();
+    public HealthColorMode ColorMode = HealthColorMode.Inherit;
+    public bool ShowShield = true;
+
+    // Cast bar under bar plates.
+    public bool ShowCast = true;
+    public float CastHeight = 12f;
+    public bool ShowCastName = true;
+    public bool ShowCastIcon = true;
+    public TextStyle CastNameStyle = new();
+
+    // Name-only plates.
+    public string NameOnlyText = "{name}";
+    public int NameOnlyFontSize = 0;
+    public bool NameOnlyJobColor = true;
+
+    // Target.
+    public bool HighlightTarget = true;
+    public float TargetScale = 1.1f;
+    public float NonTargetAlpha = 1f;
+
+    /// <summary>Click a plate to target, right-click for the menu, and use it as a mouseover target.</summary>
+    public bool Interactive = true;
     public float YOffset = 0f;
-    public bool HideGameNameplates = false;
 }
 
 public sealed class EnemyListSettings

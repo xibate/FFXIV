@@ -72,7 +72,7 @@ public sealed unsafe class DefaultHudHider : IDisposable
             AddIf(hud.HideLimitBreak && modules.Extras && profile.LimitBreak.Enabled, LimitBreakAddons);
             AddIf(hud.HideExp && modules.Extras && profile.Experience.Enabled, ExpAddons);
             AddIf(hud.HidePullTimer && modules.Extras && profile.PullTimer.Enabled, PullTimerAddons);
-            AddIf(profile.Nameplates.HideGameNameplates && modules.Nameplates && profile.Nameplates.Enabled, NameplateAddons);
+            AddIf(profile.Nameplates.GameNameplates == GameNameplateMode.HideAll && modules.Nameplates && profile.Nameplates.Enabled, NameplateAddons);
 
             // Hotbars follow their visibility rule (e.g. only in combat).
             if (modules.Hotbars)

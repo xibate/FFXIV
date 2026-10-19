@@ -198,6 +198,7 @@ public sealed partial class OptionsWindow
         Ui.Slider("Icon size", ref s.IconSize, 16f, 96f, "%.0f");
         Ui.Slider("Spacing", ref s.Spacing, 0, 20);
         Ui.Slider("Rows", ref s.Rows, 1, 4);
+        Ui.Slider("Icons per row", ref s.PerRow, 0, 20, "0 splits the icons evenly over the rows.");
         Ui.Slider("Maximum icons", ref s.MaxIcons, 1, 30, "The bar is sized for this many icons.");
         Ui.Enum("Align", ref s.Align);
         Ui.Toggle("Timer text", ref s.ShowCooldownText);
@@ -234,28 +235,45 @@ public sealed partial class OptionsWindow
 
     private static void DrawNameplates(NameplateSettings s)
     {
-        Ui.PageHeader("Nameplates", "Health bars above units.");
+        Ui.PageHeader("Nameplates", "Health bars and names above units, like EllesmereUI's nameplates.");
         ModuleSwitch("Nameplates", ref Plugin.Profiles.Current.Modules.Nameplates, "Off by default because it draws over the game world.");
 
         Ui.Card("Nameplates");
         Ui.Toggle("Enabled", ref s.Enabled);
-        Ui.Size("Size", ref s.Size);
-        Ui.Slider("Vertical offset", ref s.YOffset, -100f, 100f, "%.0f");
-        Ui.Slider("Maximum distance", ref s.MaxDistance, 5f, 100f, "%.0f yalms");
-        Ui.Toggle("Highlight target", ref s.HighlightTarget);
-        Ui.Toggle("Hide the game's nameplates", ref s.HideGameNameplates, "Hides every game nameplate, including names of NPCs and objects.");
-
-        Ui.Card("Nameplate Units");
-        Ui.Toggle("Enemies", ref s.ShowEnemies);
+        Ui.Enum("Enemies", ref s.Enemies);
         Ui.Toggle("Only enemies in combat", ref s.EnemiesOnlyInCombat);
-        Ui.Toggle("Players", ref s.ShowPlayers);
-        Ui.Toggle("Friendly NPCs", ref s.ShowFriendlyNpcs);
+        Ui.Enum("Players", ref s.Players);
+        Ui.Enum("Friendly NPCs", ref s.FriendlyNpcs);
+        Ui.Toggle("Your own nameplate", ref s.ShowSelf);
+        Ui.Slider("Maximum distance", ref s.MaxDistance, 5f, 100f, "%.0f yalms");
+        Ui.Toggle("Follow the game's nameplates", ref s.FollowGameNameplates, "Only units the game would show a nameplate for (line of sight, the game's name settings). When the game shows none, every unit nearby is used.");
+        Ui.Enum("Game nameplates", ref s.GameNameplates, "HideReplaced removes the game's name from units that get a LucentUI plate. HideAll hides the game's nameplates completely, including NPC names and quest markers.");
+        Ui.Toggle("Click to target", ref s.Interactive, "Left-click targets, right-click opens the menu, and the plate works as a mouseover target.");
+        Ui.Slider("Vertical offset", ref s.YOffset, -100f, 100f, "%.0f");
 
-        Ui.Card("Nameplate Text");
-        Ui.Toggle("Name", ref s.ShowName);
-        Ui.Toggle("Level", ref s.ShowLevel);
-        Ui.Toggle("Health %", ref s.ShowHealthText);
+        Ui.Card("Health Bar Plates");
+        Ui.Size("Size", ref s.Size);
+        Ui.Enum("Health colour", ref s.ColorMode);
+        Ui.Toggle("Shields", ref s.ShowShield);
+        Ui.Toggle("Highlight target", ref s.HighlightTarget);
+        Ui.Slider("Target size", ref s.TargetScale, 1f, 1.5f, "%.2fx");
+        Ui.Percent("Other plates' opacity", ref s.NonTargetAlpha, "Fades every plate except your target's while you have one.");
+
+        DrawTextSlot("Plate Left Text", ref s.LeftText, s.LeftStyle);
+        DrawTextSlot("Plate Center Text", ref s.CenterText, s.CenterStyle);
+        DrawTextSlot("Plate Right Text", ref s.RightText, s.RightStyle);
+
+        Ui.Card("Plate Cast Bar");
         Ui.Toggle("Cast bar", ref s.ShowCast);
+        Ui.Slider("Height", ref s.CastHeight, 4f, 30f, "%.0f");
+        Ui.Toggle("Spell name", ref s.ShowCastName);
+        Ui.Toggle("Spell icon", ref s.ShowCastIcon);
+        Ui.TextLook("Spell name", s.CastNameStyle);
+
+        Ui.Card("Name-Only Plates");
+        Ui.TextContent("Shows", ref s.NameOnlyText);
+        Ui.Slider("Font size", ref s.NameOnlyFontSize, 0, 40, "0 uses the HUD font size.");
+        Ui.Toggle("Job colour for players", ref s.NameOnlyJobColor);
     }
 
     private static void DrawEnemyList(EnemyListSettings s)

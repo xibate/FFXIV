@@ -21,6 +21,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WindowSystem windows = new("LucentUI");
     private readonly HudRenderer hud;
     private readonly DefaultHudHider hider;
+    private readonly GameNameplateHider nameplateHider = new();
     private readonly Data.PartyCooldownTracker cooldowns;
     private readonly MouseoverCaster mouseover;
     private readonly OptionsWindow options;
@@ -88,6 +89,7 @@ public sealed class Plugin : IDalamudPlugin
 
         windows.RemoveAllWindows();
         hider.Dispose();
+        nameplateHider.Dispose();
         hud.Dispose();
         cooldowns.Dispose();
         mouseover.Dispose();
@@ -119,6 +121,7 @@ public sealed class Plugin : IDalamudPlugin
 
         var profile = Profiles.Current;
         hider.Update(profile, Config.General);
+        nameplateHider.Update(profile);
         cooldowns.SetEnabled(profile.Modules.PartyCooldowns && profile.PartyCooldowns.Enabled);
         mouseover.SetEnabled(Config.General.MouseoverCasting);
 

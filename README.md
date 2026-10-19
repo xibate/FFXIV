@@ -15,7 +15,7 @@ Inspired by [EllesmereUI](https://github.com/EllesmereGaming/EllesmereUI) for Wo
 | **Auras** | Player buffs, player debuffs and target auras as icon grids with timers, tooltips, "only mine" and sort options, borders, timer position and size, and hide/only-show lists. Optional right-click to remove a buff. |
 | **Party Cooldowns** | Raid buffs, party mitigation, big heals and tank invulnerabilities used by your party, shown as active / cooling down / ready. |
 | **Enemy List** | The game's enemy list as frames, with casts and a marker on enemies attacking you. Click to target. |
-| **Nameplates** | Health bars, names, levels and cast bars above enemies (optionally players and friendly NPCs). Off by default. |
+| **Nameplates** | Health-bar plates with cast bars for enemies and name-only plates for players (each kind: bar, name only or hidden). Click a plate to target it. The game's own name is removed from units that get a LucentUI plate. Off by default. |
 | **Extras** | GCD bar or ring (can follow the mouse), MP tick timer, limit break bars, pull countdown, experience bar with rested experience. |
 | **Hotbar rules** | Show the game's hotbars only in combat, out of combat, in duties and so on. Keybinds keep working. Off by default. |
 | **Default HUD** | Hides the game elements LucentUI replaces (HP bars, target info, party list, status, job gauge, enemy list, limit break, experience, countdown, nameplates). Off until you turn it on; everything is restored on unload. |
@@ -100,5 +100,5 @@ Adding a new element: subclass `HudElement` (id, label, default position, size, 
 ## Known limits
 
 - Not tested in game yet: please report anything that looks wrong.
-- Nameplates draw LucentUI health bars at the game's nameplate positions; the game's own name text stays unless you hide the game's nameplates.
+- Nameplates sit where the game puts its own nameplate. They follow the game's nameplate list (line of sight, the game's name settings) when it has units, and otherwise use every unit nearby.
 - Party cooldowns are tracked from the moment LucentUI sees them used, so cooldowns used before you loaded or zoned show as ready.

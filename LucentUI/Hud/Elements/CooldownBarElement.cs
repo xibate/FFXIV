@@ -103,22 +103,26 @@ public sealed unsafe class CooldownBarElement : HudElement
         }
 
         var count = Math.Min(icons.Count, Math.Max(1, s.MaxIcons));
-        var (columns, rows) = Grid(s, count);
+        var (columns, _) = Grid(s, count);
         var size = MathF.Round(s.IconSize);
         var box = BoxSize(s);
-        var usedWidth = columns * size + (columns - 1) * s.Spacing;
-        var startX = s.Align switch
-        {
-            BarAlign.Left => 0f,
-            BarAlign.Right => box.X - usedWidth,
-            _ => MathF.Floor((box.X - usedWidth) / 2f),
-        };
 
         using var font = s.TimerFontSize > 0 ? ctx.Fonts.Push(s.TimerFontSize) : ctx.Fonts.PushSmall();
         for (var i = 0; i < count; i++)
         {
             var col = i % columns;
             var row = i / columns;
+
+            // Each row is aligned on its own, so a short last row sits centred (or left/right) like the rest.
+            var inRow = Math.Min(columns, count - row * columns);
+            var rowWidth = inRow * size + (inRow - 1) * s.Spacing;
+            var startX = s.Align switch
+            {
+                BarAlign.Left => 0f,
+                BarAlign.Right => box.X - rowWidth,
+                _ => MathF.Floor((box.X - rowWidth) / 2f),
+            };
+
             var iconPos = pos + new Vector2(startX + col * (size + s.Spacing), row * (size + s.Spacing));
             DrawIcon(ctx, s, icons[i], Gfx.Floor(iconPos), size);
         }
@@ -305,7 +309,14 @@ public sealed unsafe class CooldownBarElement : HudElement
 
     private static (int Columns, int Rows) Grid(CooldownBarSettings s, int count)
     {
-        var rows = Math.Clamp(s.Rows, 1, Math.Max(1, count));
+        count = Math.Max(1, count);
+        if (s.PerRow > 0)
+        {
+            var perRow = Math.Min(s.PerRow, count);
+            return (perRow, (count + perRow - 1) / perRow);
+        }
+
+        var rows = Math.Clamp(s.Rows, 1, count);
         var columns = (int)Math.Ceiling(count / (float)rows);
         return (Math.Max(1, columns), rows);
     }

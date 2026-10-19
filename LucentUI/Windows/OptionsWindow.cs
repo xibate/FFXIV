@@ -481,6 +481,7 @@ public sealed partial class OptionsWindow : Window
         Ui.Slider("Debuff icon height", ref s.DebuffIconHeight, 10f, 64f, "%.0f");
 
         DrawTextSlot("Party Left Text", ref s.LeftText, s.LeftStyle);
+        DrawTextSlot("Party Center Text", ref s.CenterText, s.CenterStyle);
         DrawTextSlot("Party Right Text", ref s.RightText, s.RightStyle);
 
         DrawVisibility("Party", s.Visibility);

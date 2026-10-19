@@ -284,6 +284,9 @@ public static class EllesmereImport
 
         /// <summary>More LucentUI ids that get the same position (e.g. one resource bar mapped to every job).</summary>
         public List<string> AlsoIds = new();
+
+        /// <summary>For bars that grow from a fixed edge: LEFT, RIGHT, UP or DOWN.</summary>
+        public string? GrowDirection;
     }
 
     /// <summary>
@@ -355,8 +358,7 @@ public static class EllesmereImport
 
             if (addons?.ContainsKey(Nameplates) == true)
             {
-                P.Modules.Nameplates = true;
-                converted.Add("nameplates (turned on)");
+                NameplateModule(Table(Get(addons, Nameplates)) ?? new Dictionary<object, object?>());
             }
 
             ApplyLinks();
@@ -380,6 +382,7 @@ public static class EllesmereImport
             }
 
             PlaceRemainingGauge();
+            PlaceTargetAuras();
 
             ConvertedAnything = converted.Count > 0;
             if (ConvertedAnything)
@@ -495,6 +498,7 @@ public static class EllesmereImport
 
             UnitCastBars(uf, positions);
             Auras(Table(Get(uf, "playerAuraBars")));
+            TargetAuras(Table(Get(uf, "target")));
         }
 
         /// <summary>Text size, offset and class-colour flag stored as prefixSize / prefixX / prefixY / prefixClassColor.</summary>
@@ -584,19 +588,107 @@ public static class EllesmereImport
         private void Auras(Dictionary<object, object?>? auras)
         {
             auras ??= new Dictionary<object, object?>();
-            var size = Num(Get(auras, "iconSize")) ?? 32;
+            AuraGrid(P.PlayerBuffs, auras, "Buffs", 11, 3, 32, "PAB_Buffs", Hud.Elements.AuraGroup.PlayerBuffs);
+            AuraGrid(P.PlayerDebuffs, auras, "Debuffs", 8, 2, 16, "PAB_Debuffs", Hud.Elements.AuraGroup.PlayerDebuffs);
+            converted.Add("player auras");
+        }
+
+        /// <summary>
+        /// One of EllesmereUI's player aura bars. Newer versions keep the grid in defaultBuffs / defaultDebuffs and the
+        /// spot in buffsPos / debuffsPos; older ones use flat keys (iconsPerRowBuffs, maxBuffs, paddingBuffs).
+        /// </summary>
+        private void AuraGrid(AuraSettings s, Dictionary<object, object?> auras, string kind, int defaultPerRow, int defaultRows, int defaultMax, string key, Hud.Elements.AuraGroup group)
+        {
+            var grid = Table(Get(auras, "default" + kind));
+            var size = Num(Get(grid, "iconSize")) ?? Num(Get(auras, "iconSize")) ?? 32;
+            var perRow = Math.Max(1, (int)(Num(Get(grid, "iconsPerRow")) ?? Num(Get(auras, "iconsPerRow" + kind)) ?? defaultPerRow));
+            var rows = Math.Max(1, (int)(Num(Get(grid, "maxRows")) ?? Num(Get(auras, "maxRows" + kind)) ?? defaultRows));
+            var padding = Num(Get(grid, "padding")) ?? Num(Get(auras, "padding" + kind)) ?? 5;
+            var max = grid != null ? perRow * rows : (int)(Num(Get(auras, "max" + kind)) ?? defaultMax);
 
             // WoW aura icons are square; FFXIV status icons are 3:4, so match the width.
-            var height = MathF.Round((float)size * scale / 0.75f);
-            P.PlayerBuffs.IconHeight = height;
-            P.PlayerDebuffs.IconHeight = height;
-            P.PlayerBuffs.PerRow = (int)(Num(Get(auras, "iconsPerRowBuffs")) ?? 11);
-            P.PlayerBuffs.MaxIcons = (int)(Num(Get(auras, "maxBuffs")) ?? 32);
-            P.PlayerBuffs.Spacing = (int)MathF.Round((float)(Num(Get(auras, "paddingBuffs")) ?? 5) * scale);
-            P.PlayerDebuffs.PerRow = (int)(Num(Get(auras, "iconsPerRowDebuffs")) ?? 8);
-            P.PlayerDebuffs.MaxIcons = (int)(Num(Get(auras, "maxDebuffs")) ?? 16);
-            P.PlayerDebuffs.Spacing = (int)MathF.Round((float)(Num(Get(auras, "paddingDebuffs")) ?? 5) * scale);
-            converted.Add("player auras");
+            s.IconHeight = MathF.Round((float)size * scale / 0.75f);
+            s.PerRow = perRow;
+            s.MaxIcons = Math.Max(1, max);
+            s.Spacing = (int)MathF.Round((float)padding * scale);
+            s.GrowLeft = (Str(Get(grid, "growDirection")) ?? "LEFT").ToUpperInvariant() == "LEFT";
+            if ((Num(Get(grid, "durationTextSize")) ?? Num(Get(auras, "durationTextSize"))) is { } timerSize)
+            {
+                s.TimerFontSize = (int)MathF.Round((float)timerSize * scale);
+            }
+
+            if ((Str(Get(auras, "durationPosition")) ?? string.Empty).ToUpperInvariant() == "CENTER")
+            {
+                s.TimerPosition = TimerPosition.Center;
+            }
+
+            var position = Table(Get(auras, kind == "Buffs" ? "buffsPos" : "debuffsPos"));
+            if (position == null)
+            {
+                return;
+            }
+
+            // Keep the edge the icons grow from where EllesmereUI had it (our icons are taller, so the box differs).
+            var euiBox = Scaled(perRow * size + (perRow - 1) * padding, rows * size + (rows - 1) * padding);
+            if (Position(position, euiBox) is not { } euiTopLeft)
+            {
+                return;
+            }
+
+            var box = new Hud.Elements.AuraElement(group).GetSize(P);
+            var topLeft = s.GrowLeft ? euiTopLeft with { X = euiTopLeft.X + euiBox.X - box.X } : euiTopLeft;
+            Place(key, new Hud.Elements.AuraElement(group).Id, box, topLeft, null);
+        }
+
+        /// <summary>The target frame's buffs and debuffs → LucentUI's target auras, placed against the target frame.</summary>
+        private void TargetAuras(Dictionary<object, object?>? target)
+        {
+            target ??= new Dictionary<object, object?>();
+            var s = P.TargetAuras;
+            var showBuffs = Bool(Get(target, "showBuffs")) ?? true;
+            var debuffAnchor = Str(Get(target, "debuffAnchor")) ?? "topleft";
+            var showDebuffs = debuffAnchor != "none";
+            s.Enabled = showBuffs || showDebuffs;
+            if (!s.Enabled)
+            {
+                return;
+            }
+
+            s.ShowBuffs = showBuffs;
+            s.ShowDebuffs = showDebuffs;
+            var prefix = showBuffs ? "buff" : "debuff";
+            var size = Num(Get(target, prefix + "Size")) ?? 22;
+            s.IconHeight = MathF.Round((float)size * scale / 0.75f);
+            s.PerRow = Math.Max(1, (int)(Num(Get(target, prefix + "MaxPerRow")) ?? 8));
+            s.MaxIcons = Math.Max(1, (showBuffs ? (int)(Num(Get(target, "maxBuffs")) ?? 8) : 0) + (showDebuffs ? (int)(Num(Get(target, "maxDebuffs")) ?? 8) : 0));
+            s.Spacing = (int)MathF.Round((float)(Num(Get(target, prefix + "SpacingX")) ?? 1) * scale);
+            s.OnlyMine = Bool(Get(target, "onlyPlayerDebuffs")) ?? false;
+            if (Num(Get(target, prefix + "CooldownTextSize")) is { } timerSize)
+            {
+                s.TimerFontSize = (int)MathF.Round((float)timerSize * scale);
+            }
+
+            s.ShowTimer = Bool(Get(target, prefix + "ShowCooldownText")) ?? true;
+            var anchor = (showBuffs ? Str(Get(target, "buffAnchor")) ?? "topleft" : debuffAnchor).ToLowerInvariant();
+            s.GrowLeft = anchor.Contains("right");
+            s.GrowUp = !anchor.StartsWith("bottom", StringComparison.Ordinal);
+            targetAuraAnchor = (anchor, Num(Get(target, prefix + "OffsetX")) ?? 0, Num(Get(target, prefix + "OffsetY")) ?? 0);
+        }
+
+        private (string Anchor, double X, double Y)? targetAuraAnchor;
+
+        /// <summary>Puts the target auras on the side of the target frame EllesmereUI anchors them to.</summary>
+        private void PlaceTargetAuras()
+        {
+            if (targetAuraAnchor is not { } a || !placed.TryGetValue("target", out var frame) || frame.TopLeft is not { } framePos)
+            {
+                return;
+            }
+
+            var box = new Hud.Elements.AuraElement(Hud.Elements.AuraGroup.Target).GetSize(P);
+            var x = a.Anchor.Contains("right") ? framePos.X + frame.Size.X - box.X : framePos.X;
+            var y = a.Anchor.StartsWith("bottom", StringComparison.Ordinal) ? framePos.Y + frame.Size.Y + 1 : framePos.Y - box.Y - 1;
+            P.Layout.Positions["auras.target"] = new Vector2(MathF.Round(x + (float)a.X * scale), MathF.Round(y - (float)a.Y * scale));
         }
 
         // ── Resource bars (cast bar, power bar, GCD) ─────────────────────────
@@ -728,8 +820,26 @@ public static class EllesmereImport
             P.JobGauge.BarHeight = Math.Max(6f, MathF.Round(reference.Size.Y * 0.8f));
 
             var left = bars.Min(b => b.TopLeft!.Value.X);
-            var bottom = bars.Max(b => b.TopLeft!.Value.Y + b.Size.Y);
-            P.Layout.Positions["jobgauge"] = new Vector2(left, bottom + 4);
+            var y = bars.Max(b => b.TopLeft!.Value.Y + b.Size.Y) + 4;
+
+            // Go below anything else that would be in the way (cooldown icons are often right under the bars).
+            var height = P.JobGauge.BarHeight * 3 + P.JobGauge.Spacing * 2;
+            var others = placed.Values.Where(p => p.TopLeft != null && !bars.Contains(p) && p.Id.Length > 0).ToList();
+            for (var moved = true; moved;)
+            {
+                moved = false;
+                foreach (var other in others)
+                {
+                    var o = other.TopLeft!.Value;
+                    if (o.X < left + P.JobGauge.Width && o.X + other.Size.X > left && o.Y < y + height && o.Y + other.Size.Y > y)
+                    {
+                        y = o.Y + other.Size.Y + 4;
+                        moved = true;
+                    }
+                }
+            }
+
+            P.Layout.Positions["jobgauge"] = new Vector2(left, y);
         }
 
         // ── Cooldown manager ─────────────────────────────────────────────────
@@ -801,10 +911,40 @@ public static class EllesmereImport
             s.Rows = Math.Max(1, (int)(Num(Get(bar, "numRows")) ?? 1));
             s.Spacing = Math.Max(0, (int)MathF.Round((float)(Num(Get(bar, "spacing")) ?? 2) * scale));
             s.ShowCooldownText = Bool(Get(bar, "showCooldownText")) ?? true;
+            s.ShowCharges = Bool(Get(bar, "showCharges")) ?? s.ShowCharges;
+            if (Num(Get(bar, "iconZoom")) is { } zoom)
+            {
+                s.IconZoom = Math.Clamp((float)zoom, 0f, 0.3f);
+            }
 
-            // EllesmereUI bars grow from the anchor point they were saved with.
+            if (Num(Get(bar, "cooldownFontSize")) is { } fontSize)
+            {
+                s.TimerFontSize = (int)MathF.Round((float)fontSize * scale);
+            }
+
+            // A fixed top row ("custom top row") sets the bar's width: that many icons per row.
+            var topRow = Bool(Get(bar, "customTopRowEnabled")) == true ? (int)(Num(Get(bar, "topRowCount")) ?? 0) : 0;
+            if (topRow > 0)
+            {
+                s.PerRow = topRow;
+                s.MaxIcons = topRow * s.Rows;
+            }
+            else
+            {
+                s.PerRow = 0;
+                s.MaxIcons = Math.Max(s.MaxIcons, s.Rows);
+            }
+
+            // EllesmereUI bars grow from a fixed edge (or the centre); without one, from the anchor point they were saved with.
+            var grow = (Str(Get(bar, "growDirection")) ?? string.Empty).ToUpperInvariant();
             var point = (Str(Get(position, "point")) ?? "CENTER").ToUpperInvariant();
-            s.Align = point.Contains("LEFT") ? BarAlign.Left : point.Contains("RIGHT") ? BarAlign.Right : BarAlign.Center;
+            s.Align = grow switch
+            {
+                "RIGHT" => BarAlign.Left,
+                "LEFT" => BarAlign.Right,
+                "CENTER" => BarAlign.Center,
+                _ => point.Contains("LEFT") ? BarAlign.Left : point.Contains("RIGHT") ? BarAlign.Right : BarAlign.Center,
+            };
 
             var size = Hud.Elements.CooldownBarElement.BoxSize(s);
             var defaultY = key switch
@@ -814,6 +954,7 @@ public static class EllesmereImport
                 _ => -365,
             };
             Place("CDM_" + key, "cdm." + key, size, Position(position, size) ?? FromCentre(0, defaultY, size), null);
+            placed["CDM_" + key].GrowDirection = grow is "LEFT" or "RIGHT" or "UP" or "DOWN" ? grow : null;
 
             // A bar can also be attached to the player frame or a resource bar from its own settings.
             var anchorTo = Str(Get(bar, "anchorTo")) ?? "none";
@@ -852,19 +993,133 @@ public static class EllesmereImport
         /// <summary>Cooldown bars attached through their own "anchor to" setting: key → (target, side, x, y).</summary>
         private readonly Dictionary<string, (string Target, string Side, double X, double Y)> barLinks = new();
 
+        // ── Nameplates ───────────────────────────────────────────────────────
+
+        private void NameplateModule(Dictionary<object, object?> np)
+        {
+            var s = P.Nameplates;
+            P.Modules.Nameplates = true;
+            s.Enabled = true;
+            s.GameNameplates = GameNameplateMode.HideReplaced;
+
+            // Bar width is EllesmereUI's 150 plus the "health bar width" setting.
+            s.Size = Scaled(150 + (Num(Get(np, "healthBarWidth")) ?? 6), Num(Get(np, "healthBarHeight")) ?? 17);
+            s.Enemies = PlateMode.Bar;
+            var friendlyPlayers = Bool(Get(np, "showFriendlyPlayers")) ?? true;
+            s.Players = !friendlyPlayers ? PlateMode.Hidden : (Bool(Get(np, "friendlyNameOnly")) ?? true) ? PlateMode.NameOnly : PlateMode.Bar;
+            s.FriendlyNpcs = (Bool(Get(np, "showFriendlyNPCs")) ?? false) ? PlateMode.NameOnly : PlateMode.Hidden;
+            s.NameOnlyFontSize = (int)MathF.Round((float)(Num(Get(np, "friendlyNameSize")) ?? 15) * scale);
+            s.NameOnlyJobColor = Bool(Get(np, "classColorFriendly")) ?? true;
+            s.TargetScale = Math.Clamp((float)(Num(Get(np, "targetScale")) ?? 100) / 100f, 1f, 1.5f);
+            s.NonTargetAlpha = Math.Clamp((float)(Num(Get(np, "nonTargetAlpha")) ?? 100) / 100f, 0f, 1f);
+            s.YOffset = -MathF.Round((float)(Num(Get(np, "nameplateYOffset")) ?? 0) * scale);
+
+            // Text slots: left / right / centre sit on the bar, "top" above it.
+            s.LeftText = PlateText(Str(Get(np, "textSlotLeft")) ?? "none");
+            s.LeftStyle = PlateTextStyle(np, "textSlotLeft", 0);
+            s.RightText = PlateText(Str(Get(np, "textSlotRight")) ?? "healthPercent");
+            s.RightStyle = PlateTextStyle(np, "textSlotRight", 0);
+            var center = PlateText(Str(Get(np, "textSlotCenter")) ?? "none");
+            var top = PlateText(Str(Get(np, "textSlotTop")) ?? "enemyName");
+            if (center.Length > 0 || top.Length == 0)
+            {
+                s.CenterText = center;
+                s.CenterStyle = PlateTextStyle(np, "textSlotCenter", 0);
+            }
+            else
+            {
+                var size = (Num(Get(np, "textSlotTopSize")) ?? 10) * scale;
+                s.CenterText = top;
+                s.CenterStyle = PlateTextStyle(np, "textSlotTop", -(s.Size.Y / 2f + (float)size / 2f + 2f));
+            }
+
+            s.ShowCast = true;
+            s.CastHeight = MathF.Round((float)(Num(Get(np, "castBarHeight")) ?? 17) * scale);
+            s.ShowCastIcon = Bool(Get(np, "showCastIcon")) ?? true;
+            s.CastNameStyle = new TextStyle
+            {
+                FontSize = (int)MathF.Round((float)(Num(Get(np, "castNameSize")) ?? 10) * scale),
+                Offset = new Vector2(MathF.Round((float)(Num(Get(np, "castNameOffsetX")) ?? 0) * scale), MathF.Round(-(float)(Num(Get(np, "castNameOffsetY")) ?? 0) * scale)),
+            };
+
+            converted.Add("nameplates");
+        }
+
+        private TextStyle PlateTextStyle(Dictionary<object, object?> np, string prefix, float baseY) => new()
+        {
+            FontSize = (int)MathF.Round((float)(Num(Get(np, prefix + "Size")) ?? 10) * scale),
+            Offset = new Vector2(
+                MathF.Round((float)(Num(Get(np, prefix + "XOffset")) ?? 0) * scale),
+                MathF.Round(baseY - (float)(Num(Get(np, prefix + "YOffset")) ?? 0) * scale)),
+            Color = Bool(Get(np, prefix + "ClassColor")) == true ? TextColorMode.Job : TextColorMode.White,
+        };
+
+        /// <summary>EllesmereUI nameplate text elements → LucentUI text tags.</summary>
+        private static string PlateText(string element) => element switch
+        {
+            "enemyName" or "name" => "{name}",
+            "healthPercent" => "{hp:pct}%",
+            "healthPercentNoSign" => "{hp:pct}",
+            "healthNumber" => "{hp}",
+            "healthPctNum" => "{hp:pct}% | {hp}",
+            "healthNumPct" => "{hp} | {hp:pct}%",
+            "healthPctNumDash" => "{hp:pct}% - {hp}",
+            "healthNumPctDash" => "{hp} - {hp:pct}%",
+            "healthNumMax" => "{hp} / {hp:max}",
+            "level" => "{level}",
+            _ => string.Empty,
+        };
+
         // ── Party frames ─────────────────────────────────────────────────────
 
         private void PartyModule(Dictionary<object, object?> raid)
         {
             var s = P.Party;
+
+            // Party settings are "party_"-prefixed overrides of the raid frame settings.
+            object? PartyValue(string key) => Get(raid, "party_" + key) ?? Get(raid, key);
+
             var width = Num(Get(raid, "partyFrameWidth")) ?? Num(Get(raid, "frameWidth")) ?? 125;
             var height = Num(Get(raid, "partyFrameHeight")) ?? Num(Get(raid, "frameHeight")) ?? 60;
             s.Size = Scaled(width, height);
-            s.Spacing = Math.Max(0, (int)MathF.Round((float)(Num(Get(raid, "cellSpacing")) ?? -1) * scale) + 1);
+            s.Spacing = Math.Max(0, (int)MathF.Round((float)(Num(Get(raid, "partyCellSpacing")) ?? Num(Get(raid, "cellSpacing")) ?? -1) * scale) + 1);
             s.Sort = (Str(Get(raid, "partySortMode")) ?? Str(Get(raid, "sortMode")) ?? "ROLE") == "ROLE" ? PartySortMode.Role : PartySortMode.Game;
             s.Horizontal = Bool(Get(raid, "partyHorizontal")) ?? false;
             s.ShowWhenSolo = Bool(Get(raid, "partyShowWhenSolo")) ?? Bool(Get(raid, "showWhenSolo")) ?? false;
             s.IncludePlayer = !(Bool(Get(raid, "partyHideSelf")) ?? false);
+
+            // Power bar: EllesmereUI shows it per role; LucentUI shows it for everyone or no one.
+            var anyPower = new[] { "Healer", "Tank", "DPS" }.Any(role => Bool(PartyValue("powerShowFor" + role)) ?? role == "Healer");
+            s.ShowPower = (Bool(PartyValue("showPowerBar")) ?? true) && anyPower;
+            s.PowerHeight = Math.Max(1, (int)MathF.Round((float)(Num(PartyValue("powerHeight")) ?? 4) * scale));
+
+            // Name: anchored in a corner or side of the health bar with 2px padding (EllesmereUI's raid frame layout).
+            var nameSize = Num(PartyValue("nameSize")) ?? 12;
+            var namePosition = Str(PartyValue("namePosition")) ?? "topleft";
+            var nameText = namePosition == "none" ? string.Empty : "{name}";
+            var nameLength = Num(Get(raid, "party_nameMaxLength"));
+            if (nameText.Length > 0 && nameLength is > 0 and < 40)
+            {
+                nameText = $"{{name:{(int)nameLength.Value}}}";
+            }
+
+            var nameStyle = SlotStyle(namePosition, nameSize, Num(PartyValue("nameOffsetX")) ?? 0, Num(PartyValue("nameOffsetY")) ?? 0, s.Size.Y);
+
+            // Health text: none / percent / deficit / current, centred by default.
+            var healthText = (Str(PartyValue("healthTextMode")) ?? "none") switch
+            {
+                "percent" => "{hp:pct}%",
+                "deficit" => "{hp:deficit}",
+                "current" or "health" => "{hp}",
+                "both" or "currentpercent" => "{hp} | {hp:pct}%",
+                _ => string.Empty,
+            };
+            var healthPosition = Str(PartyValue("healthTextPosition")) ?? "center";
+            var healthStyle = SlotStyle(healthPosition, Num(PartyValue("healthTextSize")) ?? 9, Num(PartyValue("healthTextOffsetX")) ?? 0, Num(PartyValue("healthTextOffsetY")) ?? 0, s.Size.Y);
+
+            s.LeftText = s.CenterText = s.RightText = string.Empty;
+            AssignPartySlot(s, namePosition, nameText, nameStyle);
+            AssignPartySlot(s, healthPosition, healthText, healthStyle);
 
             // EllesmereUI's party container holds five frames; place the first one where it was.
             var container = s.Horizontal
@@ -872,6 +1127,61 @@ public static class EllesmereImport
                 : new Vector2(s.Size.X, 5 * s.Size.Y + 4 * s.Spacing);
             Place("RF_PartyFrames", "party", container, Position(Table(Get(raid, "partyUnlockPos")), container), null);
             converted.Add("party frames");
+        }
+
+        /// <summary>
+        /// A text anchored at a corner/side of the frame with an offset (WoW, y up) → a LucentUI text style, whose
+        /// offset is measured from the left/centre/right slot at the frame's vertical middle.
+        /// </summary>
+        private TextStyle SlotStyle(string position, double size, double offsetX, double offsetY, float frameHeight)
+        {
+            var px = (int)MathF.Round((float)size * scale);
+            var x = (float)offsetX * scale;
+            var y = -(float)offsetY * scale;
+            if (position.StartsWith("top", StringComparison.Ordinal))
+            {
+                y += -frameHeight / 2f + 2f * scale + px / 2f;
+            }
+            else if (position.StartsWith("bottom", StringComparison.Ordinal))
+            {
+                y += frameHeight / 2f - 2f * scale - px / 2f;
+            }
+
+            // LucentUI pads left/right text by 5px; EllesmereUI by 2px.
+            if (position.EndsWith("left", StringComparison.Ordinal))
+            {
+                x -= 3f;
+            }
+            else if (position.EndsWith("right", StringComparison.Ordinal))
+            {
+                x += 3f;
+            }
+
+            return new TextStyle { FontSize = px, Offset = new Vector2(MathF.Round(x), MathF.Round(y)) };
+        }
+
+        private static void AssignPartySlot(PartySettings s, string position, string text, TextStyle style)
+        {
+            if (text.Length == 0)
+            {
+                return;
+            }
+
+            if (position.EndsWith("left", StringComparison.Ordinal))
+            {
+                s.LeftText = text;
+                s.LeftStyle = style;
+            }
+            else if (position.EndsWith("right", StringComparison.Ordinal))
+            {
+                s.RightText = text;
+                s.RightStyle = style;
+            }
+            else
+            {
+                s.CenterText = text;
+                s.CenterStyle = style;
+            }
         }
 
         // ── Placement, links and width matches ───────────────────────────────
@@ -925,6 +1235,7 @@ public static class EllesmereImport
                     }
 
                     child.TopLeft = Anchored(targetPos, target.Size, child.Size, Str(Get(info, "side")), Num(Get(info, "offsetX")), Num(Get(info, "offsetY")));
+                    child.TopLeft = GrowPinned(child, child.TopLeft.Value, targetPos, target.Size, info);
                     if (pass == 0)
                     {
                         linked++;
@@ -969,6 +1280,40 @@ public static class EllesmereImport
             };
 
             return new Vector2(MathF.Round(centre.X - childSize.X / 2f), MathF.Round(centre.Y - childSize.Y / 2f));
+        }
+
+        /// <summary>
+        /// A bar that grows from a fixed edge keeps that edge at a stored offset from one of the target's edges
+        /// (EllesmereUI's "growth-edge pin": refX/refY + edgeOffX/edgeOffY, valid while refFor matches the growth).
+        /// </summary>
+        private Vector2 GrowPinned(Placement child, Vector2 topLeft, Vector2 targetPos, Vector2 targetSize, Dictionary<object, object?> info)
+        {
+            var grow = child.GrowDirection;
+            if (grow == null || !string.Equals(Str(Get(info, "refFor")), grow, StringComparison.OrdinalIgnoreCase))
+            {
+                return topLeft;
+            }
+
+            if (grow is "LEFT" or "RIGHT")
+            {
+                var reference = (Str(Get(info, "refX")) ?? "CENTER").ToUpperInvariant() switch
+                {
+                    "LEFT" => targetPos.X,
+                    "RIGHT" => targetPos.X + targetSize.X,
+                    _ => targetPos.X + targetSize.X / 2f,
+                };
+                var edge = reference + (float)(Num(Get(info, "edgeOffX")) ?? 0) * scale;
+                return topLeft with { X = MathF.Round(grow == "RIGHT" ? edge : edge - child.Size.X) };
+            }
+
+            var referenceY = (Str(Get(info, "refY")) ?? "CENTER").ToUpperInvariant() switch
+            {
+                "TOP" => targetPos.Y,
+                "BOTTOM" => targetPos.Y + targetSize.Y,
+                _ => targetPos.Y + targetSize.Y / 2f,
+            };
+            var edgeY = referenceY - (float)(Num(Get(info, "edgeOffY")) ?? 0) * scale;
+            return topLeft with { Y = MathF.Round(grow == "UP" ? edgeY - child.Size.Y : edgeY) };
         }
 
         private Vector2 Scaled(double width, double height) =>
