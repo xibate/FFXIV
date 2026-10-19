@@ -19,6 +19,12 @@ public struct UnitBarOptions
     public bool Highlight;
     public bool Hovered;
     public bool FadeOutOfRange;
+
+    /// <summary>Game icon drawn at the left of the health bar (e.g. a job icon); 0 for none.</summary>
+    public uint Icon;
+
+    /// <summary>Key for smooth health animation; 0 turns it off.</summary>
+    public long SmoothKey;
 }
 
 /// <summary>Draws a health (+ optional power) bar for a unit. Shared by unit frames and party frames.</summary>
@@ -47,9 +53,10 @@ public static class UnitBar
             Gfx.Fill(ctx, min, healthMax, background.Value, allowGradient: false);
         }
 
+        var hpFraction = ctx.Smooth(o.SmoothKey, unit.HpFraction);
         if (!unit.IsDead)
         {
-            Gfx.Bar(ctx, min, healthMax, unit.HpFraction, fill, o.Reverse);
+            Gfx.Bar(ctx, min, healthMax, hpFraction, fill, o.Reverse);
         }
 
         if (o.ShowShield && unit.ShieldFraction > 0f && unit.HasHealth && !unit.IsDead)
@@ -86,12 +93,23 @@ public static class UnitBar
             ctx.DrawList.AddRect(pos - Vector2.One, pos + size + Vector2.One, ctx.Col(s.Accent), s.Rounding, default, 2f);
         }
 
+        // Icon
+        var textMin = min;
+        if (o.Icon != 0)
+        {
+            var iconSize = Math.Max(8f, healthMax.Y - min.Y - 4f);
+            var iconPos = new Vector2(min.X + 2f, MathF.Floor((min.Y + healthMax.Y - iconSize) / 2f));
+            var texture = Svc.TextureProvider.GetFromGameIcon(new Dalamud.Interface.Textures.GameIconLookup(o.Icon)).GetWrapOrEmpty();
+            ctx.DrawList.AddImage(texture.Handle, iconPos, iconPos + new Vector2(iconSize), Vector2.Zero, Vector2.One, ctx.Col(Vector4.One));
+            textMin.X += iconSize + 2f;
+        }
+
         // Text
         var abbreviate = s.AbbreviateNumbers;
         var left = TextTags.Format(o.LeftText, unit, abbreviate);
         var center = TextTags.Format(o.CenterText, unit, abbreviate);
         var right = unit.IsDead ? "Dead" : TextTags.Format(o.RightText, unit, abbreviate);
-        Gfx.TextRow(ctx, min, healthMax, left, center, right);
+        Gfx.TextRow(ctx, textMin, healthMax, left, center, right);
 
         ctx.Alpha = savedAlpha;
     }

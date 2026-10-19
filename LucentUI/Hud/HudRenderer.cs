@@ -16,25 +16,36 @@ public sealed class HudRenderer : IDisposable
 
     private readonly Fonts fonts = new();
     private readonly Interaction input = new();
+    private readonly Smoother smoother = new();
+    private readonly ClipRects clips = new();
     private readonly DrawContext ctx = new();
     private readonly Dictionary<string, float> alphas = new();
     private readonly HashSet<string> failedElements = new();
 
-    public HudRenderer()
+    public HudRenderer(Data.PartyCooldownTracker cooldowns)
     {
         Elements = new HudElement[]
         {
+            new NameplatesElement(),
             new PartyFramesElement(),
+            new PartyCooldownsElement(cooldowns),
+            new EnemyListElement(),
             new UnitFrameElement(UnitKind.Player),
             new UnitFrameElement(UnitKind.Target),
             new UnitFrameElement(UnitKind.TargetOfTarget),
             new UnitFrameElement(UnitKind.Focus),
+            new JobGaugeElement(),
             new CastBarElement(UnitKind.Player),
             new CastBarElement(UnitKind.Target),
             new CastBarElement(UnitKind.Focus),
             new AuraElement(AuraGroup.PlayerBuffs),
             new AuraElement(AuraGroup.PlayerDebuffs),
             new AuraElement(AuraGroup.Target),
+            new GcdElement(),
+            new MpTickerElement(),
+            new LimitBreakElement(),
+            new PullTimerElement(),
+            new ExperienceElement(),
         };
 
         Unlock = new UnlockMode(Elements);
@@ -79,14 +90,20 @@ public sealed class HudRenderer : IDisposable
         {
             if (open)
             {
-                input.BeginFrame();
+                clips.Update(config.General.ClipBehindWindows && !Unlock.Active, viewport.Pos);
+                input.BeginFrame(clips);
 
                 ctx.DrawList = ImGui.GetWindowDrawList();
                 ctx.Profile = profile;
                 ctx.General = config.General;
                 ctx.Fonts = fonts;
                 ctx.Input = input;
+                ctx.Smoother = smoother;
+                ctx.Clips = clips;
+                ctx.DeltaTime = ImGui.GetIO().DeltaTime;
                 ctx.Preview = Unlock.Active;
+                smoother.Enabled = profile.Style.SmoothBars;
+                smoother.NextFrame();
 
                 if (Unlock.Active)
                 {
@@ -130,7 +147,7 @@ public sealed class HudRenderer : IDisposable
             try
             {
                 using var font = fonts.PushMain();
-                element.Draw(ctx, origin + element.GetPosition(profile));
+                DrawClipped(element, origin + element.GetPosition(profile));
             }
             catch (Exception ex)
             {
@@ -143,6 +160,43 @@ public sealed class HudRenderer : IDisposable
         }
 
         ctx.Alpha = 1f;
+    }
+
+    /// <summary>Draws an element, cut away (or hidden) where a game window covers it.</summary>
+    private void DrawClipped(HudElement element, Vector2 pos)
+    {
+        if (!clips.Enabled || !element.Movable)
+        {
+            element.Draw(ctx, pos);
+            return;
+        }
+
+        // Elements may draw a little outside their box (labels, debuff icons), so look at a wider area.
+        var margin = new Vector2(80f, 40f);
+        var area = (pos - margin, pos + element.GetSize(ctx.Profile) + margin);
+        if (clips.FirstOverlap(area.Item1, area.Item2) is not { } window)
+        {
+            element.Draw(ctx, pos);
+            return;
+        }
+
+        if (Plugin.Config.General.ClipMode == Config.ClipMode.Hide)
+        {
+            return;
+        }
+
+        // Draw once per uncovered strip; only the first pass handles the mouse.
+        var first = true;
+        foreach (var (min, max) in ClipRects.Subtract(area, window))
+        {
+            ctx.DrawList.PushClipRect(min, max, true);
+            input.Suppressed = !first;
+            element.Draw(ctx, pos);
+            ctx.DrawList.PopClipRect();
+            first = false;
+        }
+
+        input.Suppressed = false;
     }
 
     private float CurrentAlpha(HudElement element, float target, float delta)

@@ -7,20 +7,36 @@ Inspired by [EllesmereUI](https://github.com/EllesmereGaming/EllesmereUI) for Wo
 
 | Module | Contents |
 | --- | --- |
-| **Unit Frames** | Player, Target, Target of Target and Focus. Health, shields, mana/GP/CP, job/role/gradient/dark colour modes, text templates. Click to target, right-click menu, `<mo>` mouseover. |
+| **Unit Frames** | Player, Target, Target of Target and Focus. Health, shields, mana/GP/CP, job/role/gradient/dark colour modes, text templates, smooth health animation. Click to target, right-click menu, `<mo>` mouseover. |
+| **Party Frames** | Same order as the game's party list (or by role), cross-world and trust parties, job icons, range fading, target highlight. Trackers for raises, invulnerabilities, cleansable debuffs and ready checks, plus debuff icons per member. |
+| **Job Gauges** | Every combat job (21 jobs): resources (Beast Gauge, Kenki, Soul Voice...), stacks (cartridges, lilies, feathers...), coloured pips (Sen, Beast Chakra, dance steps, cards...), and timers for key buffs, procs and DoTs. Each bar can be turned off or recoloured. |
 | **Cast Bars** | Player, Target and Focus, with spell icon, name, timer, interruptible colour and the player's slidecast window. |
 | **Auras** | Player buffs, player debuffs and target auras as icon grids with timers, tooltips, "only mine" and sort options. Optional right-click to remove a buff. |
-| **Party Frames** | Up to 8 members, sorted by role, faded when out of range, with target highlight and click targeting. |
-| **Default HUD** | Hides the game elements LucentUI replaces. Off until you turn it on; everything is restored on unload. |
+| **Party Cooldowns** | Raid buffs, party mitigation, big heals and tank invulnerabilities used by your party, shown as active / cooling down / ready. |
+| **Enemy List** | The game's enemy list as frames, with casts and a marker on enemies attacking you. Click to target. |
+| **Nameplates** | Health bars, names, levels and cast bars above enemies (optionally players and friendly NPCs). Off by default. |
+| **Extras** | GCD bar or ring (can follow the mouse), MP tick timer, limit break bars, pull countdown, experience bar with rested experience. |
+| **Hotbar rules** | Show the game's hotbars only in combat, out of combat, in duties and so on. Keybinds keep working. Off by default. |
+| **Default HUD** | Hides the game elements LucentUI replaces (HP bars, target info, party list, status, job gauge, enemy list, limit break, experience, countdown, nameplates). Off until you turn it on; everything is restored on unload. |
 
 Core systems, following EllesmereUI's ideas:
 
 - **Unlock Mode** (`/lucent unlock`): drag any element, snap to a grid, nudge with arrow keys (Shift for 10px), right-click to reset, or type exact coordinates in the toolbar.
-- **One style page**: accent colour, borders, rounding, gradient, fonts and every colour live in one place.
+- **One style page**: accent colour, borders, rounding, bar styles (flat, gradient, glossy, inset, striped), drop shadows, game fonts and every colour live in one place.
 - **Profiles**: create, copy, rename, reset, and share them as text (export/import via clipboard). Assign a profile to each job and it loads when you switch.
+- **EllesmereUI import**: paste an EllesmereUI profile string (`!EUI_...`) and it is converted to a LucentUI profile (see below).
 - **Visibility rules** per element: always, in combat, in combat or targeting, out of combat, in duty, or never, with an optional faded opacity instead of hiding.
+- **Stay behind game windows**: optional; LucentUI is cut away (or hidden) where a game window such as the inventory is open on top of it, and clicks there reach the window.
 - **Searchable options**: type in the search box to find any setting across all pages.
 - **Zero cost when off, no change without opt-in**: disabled modules draw and hook nothing, and the game's HUD is untouched until you choose to hide parts of it.
+
+### Importing an EllesmereUI profile
+
+In WoW, export your profile from EllesmereUI and copy the string (it starts with `!EUI_`). In game, open `/lucent` → **Profiles**, type a name and press **Import EllesmereUI profile from clipboard** (the normal Import button also recognises these strings).
+
+Converted: player, target, target-of-target and focus frame sizes, positions, power bars, text, class-colour and dark-theme choices, reversed fill and enabled state; player and target cast bar sizes and colour; player aura icon size, rows and limits; raid/party frame size, spacing, sorting and direction; accent colour and text outline. Sizes and positions are scaled from the WoW UI scale to your screen.
+
+Skipped, because FFXIV has no equivalent or plugins cannot change it: action bars, bags, chat, minimap, quest tracker, damage meters, Blizzard window skins, WoW fonts and textures.
 
 ### Text templates
 
@@ -60,20 +76,22 @@ Bump `<Version>` in `LucentUI/LucentUI.csproj` and `AssemblyVersion` in `repo.js
 LucentUI/
   Plugin.cs              entry point, commands, saving, job-change detection
   Svc.cs                 Dalamud services
-  Config/                settings classes, configuration, profile manager (import/export)
-  Data/                  reading units, casts and statuses from the game; text tags
-  Style/                 colours and job table, fonts, drawing primitives
-  Hud/                   renderer, Unlock Mode, input handling, visibility rules
-  Hud/Elements/          unit frames, cast bars, auras, party frames
-  Game/DefaultHudHider   hides and restores the game's own HUD pieces
-  Windows/               settings window and its widget kit
+  Config/                settings, configuration, profiles (import/export), EllesmereUI import
+  Data/                  units, casts, statuses, party (game order), party cooldown tracking, text tags
+  Gauges/                job gauge model and the per-job bar definitions
+  Style/                 colours and job table, fonts, drawing primitives and bar styles
+  Hud/                   renderer, Unlock Mode, input, visibility rules, smoothing, window clipping
+  Hud/Elements/          unit/party frames, job gauge, cast bars, auras, cooldowns, enemy list, nameplates, extras
+  Game/DefaultHudHider   hides and restores the game's own HUD pieces and applies hotbar rules
+  Windows/               settings window, its pages and widget kit
 ```
+
+Adding a job gauge bar: add a `GaugePart` to the job's list in `Gauges/JobGaugeDefinitions.cs`; it gets a settings toggle and colour automatically.
 
 Adding a new element: subclass `HudElement` (id, label, default position, size, enabled check, `Draw`), add it to the list in `HudRenderer`, and give it a settings class in `Config/Settings.cs` and a page in `OptionsWindow`. It then works with Unlock Mode, profiles and visibility rules automatically.
 
-## Not yet included
+## Known limits
 
-- Job gauges and a GCD/cooldown tracker
-- Nameplates, enemy list, alliance frames and party debuffs/cleanse markers
-- Hiding LucentUI under game windows (frames currently draw on top of game windows, like DelvUI without its clipping option)
-- Cross-world party data beyond what Dalamud's party list provides
+- Not tested in game yet: please report anything that looks wrong.
+- Nameplates draw LucentUI health bars at the game's nameplate positions; the game's own name text stays unless you hide the game's nameplates.
+- Party cooldowns are tracked from the moment LucentUI sees them used, so cooldowns used before you loaded or zoned show as ready.

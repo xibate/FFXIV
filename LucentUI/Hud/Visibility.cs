@@ -14,18 +14,18 @@ public static class Visibility
             return 1f;
         }
 
-        var visible = settings.Mode switch
-        {
-            VisibilityMode.Always => true,
-            VisibilityMode.InCombat => InCombat,
-            VisibilityMode.InCombatOrTargeting => InCombat || Svc.TargetManager.Target != null,
-            VisibilityMode.OutOfCombat => !InCombat,
-            VisibilityMode.InDuty => InDuty,
-            _ => false,
-        };
-
-        return visible ? 1f : Math.Clamp(settings.HiddenAlpha, 0f, 1f);
+        return IsVisible(settings.Mode) ? 1f : Math.Clamp(settings.HiddenAlpha, 0f, 1f);
     }
+
+    public static bool IsVisible(VisibilityMode mode) => mode switch
+    {
+        VisibilityMode.Always => true,
+        VisibilityMode.InCombat => InCombat,
+        VisibilityMode.InCombatOrTargeting => InCombat || Svc.TargetManager.Target != null,
+        VisibilityMode.OutOfCombat => !InCombat,
+        VisibilityMode.InDuty => InDuty,
+        _ => false,
+    };
 
     public static bool InCombat => Svc.Condition[ConditionFlag.InCombat];
 

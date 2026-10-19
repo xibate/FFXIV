@@ -21,4 +21,7 @@ internal sealed class Svc
     [PluginService] public static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] public static IChatGui Chat { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
+    [PluginService] public static IJobGauges JobGauges { get; private set; } = null!;
+    [PluginService] public static IGameInteropProvider Interop { get; private set; } = null!;
+    [PluginService] public static IDutyState DutyState { get; private set; } = null!;
 }

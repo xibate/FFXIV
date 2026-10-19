@@ -12,11 +12,18 @@ public sealed class Fonts : IDisposable
     private IFontHandle? small;
     private int mainSize;
     private int smallSize;
+    private FontFamily family;
 
     public void Ensure(StyleSettings style)
     {
         var wantMain = Math.Clamp(style.FontSize, 8, 40);
         var wantSmall = Math.Clamp(style.SmallFontSize, 8, 40);
+
+        if (style.Font != family)
+        {
+            family = style.Font;
+            Dispose();
+        }
 
         if (main == null || wantMain != mainSize)
         {
@@ -45,8 +52,8 @@ public sealed class Fonts : IDisposable
         small = null;
     }
 
-    private static IFontHandle Create(int sizePx) =>
-        Svc.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Axis, sizePx));
+    private IFontHandle Create(int sizePx) =>
+        Svc.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle((GameFontFamily)((int)family + 1), sizePx));
 
     private sealed class Noop : IDisposable
     {

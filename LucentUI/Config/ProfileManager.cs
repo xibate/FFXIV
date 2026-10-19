@@ -193,6 +193,34 @@ public sealed class ProfileManager
         }
     }
 
+    /// <summary>Converts an EllesmereUI profile string into a new profile.</summary>
+    public bool TryImportEllesmere(string text, string name, System.Numerics.Vector2 screenSize, out System.Collections.Generic.List<string> notes, out string error)
+    {
+        notes = new System.Collections.Generic.List<string>();
+        name = name.Trim();
+        if (name.Length == 0)
+        {
+            error = "Enter a name for the imported profile.";
+            return false;
+        }
+
+        if (config.Profiles.ContainsKey(name))
+        {
+            error = $"A profile called \"{name}\" already exists.";
+            return false;
+        }
+
+        if (!EllesmereImport.TryConvert(text, screenSize, out var result, out error))
+        {
+            return false;
+        }
+
+        config.Profiles[name] = result.Profile;
+        notes = result.Notes;
+        Plugin.MarkDirty();
+        return true;
+    }
+
     public static Profile Clone(Profile profile)
     {
         var json = JsonConvert.SerializeObject(profile, JsonSettings);

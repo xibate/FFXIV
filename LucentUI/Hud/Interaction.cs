@@ -18,16 +18,22 @@ public sealed unsafe class Interaction
     private nint currentMouseover;
     private bool blocked;
 
+    /// <summary>True while an element is redrawn for clipping; only the first pass handles input.</summary>
+    public bool Suppressed;
+
     /// <summary>Call inside the HUD window, before elements draw.</summary>
-    public void BeginFrame()
+    public void BeginFrame(ClipRects clips)
     {
         hovered = null;
+        Suppressed = false;
 
-        // Another ImGui window (settings, other plugins) is under the mouse: leave input to it.
-        blocked = ImGui.IsWindowHovered(ImGuiHoveredFlags.AnyWindow) || ImGui.GetIO().WantTextInput;
+        // Another ImGui window (settings, other plugins) or a game window is under the mouse: leave input to it.
+        blocked = ImGui.IsWindowHovered(ImGuiHoveredFlags.AnyWindow) ||
+                  ImGui.GetIO().WantTextInput ||
+                  (clips.Enabled && clips.Contains(ImGui.GetMousePos()));
     }
 
-    public bool IsHovering(Vector2 min, Vector2 max) => !blocked && ImGui.IsMouseHoveringRect(min, max, false);
+    public bool IsHovering(Vector2 min, Vector2 max) => !blocked && !Suppressed && ImGui.IsMouseHoveringRect(min, max, false);
 
     /// <summary>Claims the mouse for a frame rectangle and handles clicks. Returns true while hovered.</summary>
     public bool HandleUnit(Vector2 min, Vector2 max, IGameObject? obj, GeneralSettings general)

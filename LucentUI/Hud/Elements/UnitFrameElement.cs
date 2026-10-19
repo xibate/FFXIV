@@ -78,6 +78,7 @@ public sealed class UnitFrameElement : HudElement
             ShowShield = s.ShowShield,
             Reverse = s.ReverseFill,
             Hovered = hovered,
+            SmoothKey = unit.Object != null ? DrawContext.Key(Id, unit.Object.GameObjectId) : 0,
         });
     }
 }

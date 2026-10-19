@@ -11,7 +11,7 @@ using LucentUI.Style;
 
 namespace LucentUI.Windows;
 
-public sealed class OptionsWindow : Window
+public sealed partial class OptionsWindow : Window
 {
     private enum Page
     {
@@ -24,6 +24,12 @@ public sealed class OptionsWindow : Window
         Party,
         CastBars,
         Auras,
+        JobGauge,
+        PartyCooldowns,
+        Nameplates,
+        EnemyList,
+        Extras,
+        Hotbars,
         DefaultHud,
         Profiles,
         About,
@@ -32,16 +38,17 @@ public sealed class OptionsWindow : Window
     private static readonly (string Group, (Page Page, string Label)[] Items)[] Navigation =
     {
         ("GENERAL", new[] { (Page.General, "General"), (Page.Style, "Style") }),
-        ("FRAMES", new[] { (Page.Player, "Player"), (Page.Target, "Target"), (Page.TargetOfTarget, "Target of Target"), (Page.Focus, "Focus"), (Page.Party, "Party") }),
-        ("COMBAT", new[] { (Page.CastBars, "Cast Bars"), (Page.Auras, "Auras") }),
-        ("SYSTEM", new[] { (Page.DefaultHud, "Default HUD"), (Page.Profiles, "Profiles"), (Page.About, "About") }),
+        ("FRAMES", new[] { (Page.Player, "Player"), (Page.Target, "Target"), (Page.TargetOfTarget, "Target of Target"), (Page.Focus, "Focus"), (Page.Party, "Party"), (Page.EnemyList, "Enemy List"), (Page.Nameplates, "Nameplates") }),
+        ("COMBAT", new[] { (Page.JobGauge, "Job Gauge"), (Page.CastBars, "Cast Bars"), (Page.Auras, "Auras"), (Page.PartyCooldowns, "Party Cooldowns"), (Page.Extras, "Extras") }),
+        ("SYSTEM", new[] { (Page.Hotbars, "Hotbars"), (Page.DefaultHud, "Default HUD"), (Page.Profiles, "Profiles"), (Page.About, "About") }),
     };
 
     // Pages included in search results (the custom ones are left out).
     private static readonly Page[] SearchablePages =
     {
         Page.General, Page.Style, Page.Player, Page.Target, Page.TargetOfTarget, Page.Focus,
-        Page.Party, Page.CastBars, Page.Auras, Page.DefaultHud,
+        Page.Party, Page.EnemyList, Page.Nameplates, Page.JobGauge, Page.CastBars, Page.Auras,
+        Page.PartyCooldowns, Page.Extras, Page.Hotbars, Page.DefaultHud,
     };
 
     private readonly HudRenderer hud;
@@ -248,6 +255,24 @@ public sealed class OptionsWindow : Window
             case Page.Auras:
                 DrawAuras(profile);
                 break;
+            case Page.JobGauge:
+                DrawJobGauge(profile.JobGauge);
+                break;
+            case Page.PartyCooldowns:
+                DrawPartyCooldowns(profile.PartyCooldowns);
+                break;
+            case Page.Nameplates:
+                DrawNameplates(profile.Nameplates);
+                break;
+            case Page.EnemyList:
+                DrawEnemyList(profile.EnemyList);
+                break;
+            case Page.Extras:
+                DrawExtras(profile);
+                break;
+            case Page.Hotbars:
+                DrawHotbars(profile.Hotbars);
+                break;
             case Page.DefaultHud:
                 DrawDefaultHud(profile.DefaultHud);
                 break;
@@ -277,11 +302,19 @@ public sealed class OptionsWindow : Window
         Ui.Toggle("Cast Bars", ref profile.Modules.CastBars);
         Ui.Toggle("Auras", ref profile.Modules.Auras);
         Ui.Toggle("Party Frames", ref profile.Modules.PartyFrames);
+        Ui.Toggle("Job Gauges", ref profile.Modules.JobGauges);
+        Ui.Toggle("Party Cooldowns", ref profile.Modules.PartyCooldowns);
+        Ui.Toggle("Enemy List", ref profile.Modules.EnemyList);
+        Ui.Toggle("Nameplates", ref profile.Modules.Nameplates, "Health bars above enemies (and optionally players). Off by default.");
+        Ui.Toggle("Extras", ref profile.Modules.Extras, "GCD, MP ticker, limit break, pull timer and experience bar.");
+        Ui.Toggle("Hotbar rules", ref profile.Modules.Hotbars, "Show or hide the game's hotbars by combat state. Off by default.");
 
         Ui.Card("Display");
         Ui.Toggle("Show HUD", ref general.ShowHud, "Master switch. Also available as /lucent toggle.");
         Ui.Toggle("Hide when game UI is hidden", ref general.HideWhenGameUiHidden, "Follows the game's hide-UI key (Scroll Lock by default).");
         Ui.Toggle("Smooth fades", ref general.SmoothFades, "Fade elements in and out when their visibility rules change.");
+        Ui.Toggle("Stay behind game windows", ref general.ClipBehindWindows, "Cut LucentUI away where a game window (inventory, character...) is open on top of it, and let clicks there reach the window.");
+        Ui.Enum("Behind windows", ref general.ClipMode, "Clip cuts the covered part away; Hide hides any element a window touches.");
         if (Ui.Button("Layout", hud.Unlock.Active ? "Lock elements" : "Unlock elements to move them"))
         {
             hud.Unlock.Toggle();
@@ -321,10 +354,14 @@ public sealed class OptionsWindow : Window
         Ui.Color("Border", ref s.Border);
         Ui.Slider("Border size", ref s.BorderSize, 0, 4);
         Ui.Slider("Corner rounding", ref s.Rounding, 0f, 12f, "%.0f", "Rounded corners turn off the bar gradient.");
-        Ui.Toggle("Bar gradient", ref s.Gradient);
-        Ui.Percent("Gradient strength", ref s.GradientStrength);
+        Ui.Enum("Bar style", ref s.BarStyle, "Rounded corners always draw flat bars.");
+        Ui.Percent("Style strength", ref s.GradientStrength, "How strong the gradient, gloss or stripes are.");
+        Ui.Slider("Shadow size", ref s.ShadowSize, 0, 8, "A soft drop shadow behind every frame. 0 turns it off.");
+        Ui.Color("Shadow colour", ref s.ShadowColor);
+        Ui.Toggle("Smooth bars", ref s.SmoothBars, "Health bars slide to their new value instead of jumping.");
 
         Ui.Card("Text");
+        Ui.Enum("Font", ref s.Font, "The game's own fonts. TrumpGothic and Jupiter are condensed, MiedingerMid is the number font.");
         Ui.Slider("Font size", ref s.FontSize, 8, 40);
         Ui.Slider("Small font size", ref s.SmallFontSize, 8, 40, "Used for aura timers.");
         Ui.Toggle("Text outline", ref s.TextOutline);
@@ -407,6 +444,18 @@ public sealed class OptionsWindow : Window
         Ui.Toggle("Clickable", ref s.Interactive);
         Ui.Toggle("Show power bar", ref s.ShowPower);
         Ui.Slider("Power bar height", ref s.PowerHeight, 1, 20);
+        Ui.Toggle("Job icon", ref s.ShowJobIcon);
+
+        Ui.Card("Party Trackers");
+        Ui.Toggle("Raise", ref s.ShowRaise, "Shows when a dead member has a raise waiting or one is being cast on them.");
+        Ui.Toggle("Invulnerability", ref s.ShowInvulnerability, "Hallowed Ground, Holmgang, Living Dead and Superbolide.");
+        Ui.Toggle("Cleansable debuffs", ref s.ShowCleansable, "Outlines members with a debuff Esuna can remove.");
+        Ui.Toggle("Only if I can cleanse", ref s.CleansableOnlyIfICanCleanse, "Healers and bards.");
+        Ui.Color("Cleansable colour", ref s.CleansableColor);
+        Ui.Toggle("Ready check", ref s.ShowReadyCheck);
+        Ui.Toggle("Debuff icons", ref s.ShowDebuffs);
+        Ui.Slider("Debuffs per member", ref s.MaxDebuffs, 1, 8);
+        Ui.Slider("Debuff icon height", ref s.DebuffIconHeight, 10f, 64f, "%.0f");
 
         Ui.Card("Party Text", TextTags.Help);
         Ui.Text("Left text", ref s.LeftText);
@@ -480,6 +529,11 @@ public sealed class OptionsWindow : Window
         Ui.Toggle("Cast bar", ref s.HideCastBar);
         Ui.Toggle("Party list", ref s.HideParty);
         Ui.Toggle("Status effects", ref s.HideStatus, "Hides all of the game's status windows (buffs, debuffs and others).");
+        Ui.Toggle("Job gauge", ref s.HideJobGauge);
+        Ui.Toggle("Enemy list", ref s.HideEnemyList);
+        Ui.Toggle("Limit break", ref s.HideLimitBreak);
+        Ui.Toggle("Experience bar", ref s.HideExp);
+        Ui.Toggle("Countdown", ref s.HidePullTimer);
     }
 
     // ── Profiles ─────────────────────────────────────────────────────────────
@@ -540,14 +594,30 @@ public sealed class OptionsWindow : Window
         Ui.Text("Imported profile name", ref importName, hint: "Name for the imported profile");
         if (Ui.Button("Import", "Import from clipboard"))
         {
-            var ok = profiles.TryImport(ImGui.GetClipboardText() ?? string.Empty, importName, out var error);
-            Report(ok, "Imported " + importName, error);
+            var clipboard = ImGui.GetClipboardText() ?? string.Empty;
+            if (EllesmereImport.LooksLike(clipboard))
+            {
+                ImportEllesmere(clipboard);
+            }
+            else
+            {
+                var ok = profiles.TryImport(clipboard, importName, out var error);
+                Report(ok, "Imported " + importName, error);
+            }
+        }
+
+        Ui.Card("Import from EllesmereUI", "Copy a profile string from EllesmereUI in WoW (it starts with !EUI_), enter a name above, then import. Frame sizes, positions, text, colours, cast bars, auras and party frames are converted; WoW-only modules are skipped.");
+        if (Ui.Button("EllesmereUI", "Import EllesmereUI profile from clipboard"))
+        {
+            ImportEllesmere(ImGui.GetClipboardText() ?? string.Empty);
         }
 
         Ui.EndCard();
         if (profileMessage.Length > 0)
         {
-            ImGui.TextColored(Ui.Accent, profileMessage);
+            ImGui.PushStyleColor(ImGuiCol.Text, Ui.Accent);
+            ImGui.TextWrapped(profileMessage);
+            ImGui.PopStyleColor();
         }
 
         DrawJobProfiles();

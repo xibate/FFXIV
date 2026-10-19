@@ -109,7 +109,7 @@ public sealed class UnlockMode
 
         foreach (var element in elements)
         {
-            if (!element.IsEnabled(profile))
+            if (!element.IsEnabled(profile) || !element.Movable)
             {
                 continue;
             }

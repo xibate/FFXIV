@@ -6,6 +6,7 @@ namespace LucentUI.Config;
 
 // Settings use public fields so they can be bound directly with ImGui's `ref` widgets.
 // Every new setting must have a default that keeps current behaviour (opt-in only).
+// Avoid List<T> fields with default items: Newtonsoft appends to them on load.
 
 public enum HealthColorMode
 {
@@ -31,8 +32,36 @@ public enum VisibilityMode
 
 public enum PartySortMode
 {
+    /// <summary>The same order as the game's party list.</summary>
+    Game,
     Role,
-    PartyList,
+}
+
+public enum BarStyle
+{
+    Flat,
+    Gradient,
+    Glossy,
+    Inset,
+    Striped,
+}
+
+public enum FontFamily
+{
+    Axis,
+    Jupiter,
+    JupiterNumeric,
+    Meidinger,
+    MiedingerMid,
+    TrumpGothic,
+}
+
+public enum ClipMode
+{
+    /// <summary>Cut the part of an element that a game window covers.</summary>
+    Clip,
+    /// <summary>Hide an element entirely while a game window covers any of it.</summary>
+    Hide,
 }
 
 public sealed class VisibilitySettings
@@ -52,6 +81,8 @@ public sealed class GeneralSettings
     public bool RightClickMenu = true;
     public bool MouseoverTarget = true;
     public bool SmoothFades = true;
+    public bool ClipBehindWindows = false;
+    public ClipMode ClipMode = ClipMode.Clip;
 }
 
 public sealed class ModuleSettings
@@ -60,6 +91,12 @@ public sealed class ModuleSettings
     public bool CastBars = true;
     public bool Auras = true;
     public bool PartyFrames = true;
+    public bool JobGauges = true;
+    public bool PartyCooldowns = true;
+    public bool Nameplates = false;
+    public bool EnemyList = true;
+    public bool Extras = true;
+    public bool Hotbars = false;
 }
 
 public sealed class StyleSettings
@@ -69,9 +106,13 @@ public sealed class StyleSettings
     public Vector4 Border = new(0f, 0f, 0f, 1f);
     public int BorderSize = 1;
     public float Rounding = 0f;
-    public bool Gradient = true;
+    public BarStyle BarStyle = BarStyle.Gradient;
     public float GradientStrength = 0.18f;
+    public int ShadowSize = 0;
+    public Vector4 ShadowColor = new(0f, 0f, 0f, 0.45f);
+    public bool SmoothBars = true;
 
+    public FontFamily Font = FontFamily.Axis;
     public int FontSize = 16;
     public int SmallFontSize = 13;
     public bool TextOutline = true;
@@ -151,7 +192,7 @@ public sealed class PartySettings
     public bool Horizontal = false;
     public bool ShowWhenSolo = false;
     public bool IncludePlayer = true;
-    public PartySortMode Sort = PartySortMode.Role;
+    public PartySortMode Sort = PartySortMode.Game;
     public bool ShowPower = true;
     public int PowerHeight = 4;
     public string LeftText = "{name:14}";
@@ -161,7 +202,120 @@ public sealed class PartySettings
     public bool RangeFade = true;
     public bool HighlightTarget = true;
     public bool Interactive = true;
+    public bool ShowJobIcon = true;
+
+    // Trackers
+    public bool ShowRaise = true;
+    public bool ShowInvulnerability = true;
+    public bool ShowCleansable = true;
+    public bool CleansableOnlyIfICanCleanse = true;
+    public Vector4 CleansableColor = Colors.Rgb(0xB65CE6);
+    public bool ShowReadyCheck = true;
+
+    // Debuff icons on each member
+    public bool ShowDebuffs = true;
+    public int MaxDebuffs = 3;
+    public float DebuffIconHeight = 22f;
+
     public VisibilitySettings Visibility = new();
+}
+
+public sealed class GaugePartSettings
+{
+    public bool Enabled = true;
+    public bool CustomColor = false;
+    public Vector4 Color = Vector4.One;
+}
+
+public sealed class JobGaugeSettings
+{
+    public bool Enabled = true;
+    public float Width = 260f;
+    public float BarHeight = 14f;
+    public int Spacing = 3;
+    public bool ShowText = true;
+    public bool HideEmptyTimers = true;
+
+    /// <summary>"JOB.part" → overrides. Missing parts use their defaults.</summary>
+    public Dictionary<string, GaugePartSettings> Parts = new();
+
+    public VisibilitySettings Visibility = new();
+}
+
+public sealed class PartyCooldownSettings
+{
+    public bool Enabled = true;
+    public Vector2 RowSize = new(200, 20);
+    public int Spacing = 2;
+    public int MaxRows = 12;
+    public bool GrowUp = false;
+    public bool ShowRaidBuffs = true;
+    public bool ShowMitigation = true;
+    public bool ShowHealing = true;
+    public bool ShowTankInvulns = true;
+    public bool ShowWhenSolo = false;
+    public bool ShowReady = true;
+    public VisibilitySettings Visibility = new();
+}
+
+public sealed class NameplateSettings
+{
+    public bool Enabled = true;
+    public Vector2 Size = new(120, 10);
+    public bool ShowEnemies = true;
+    public bool EnemiesOnlyInCombat = false;
+    public bool ShowPlayers = false;
+    public bool ShowFriendlyNpcs = false;
+    public bool ShowName = true;
+    public bool ShowLevel = true;
+    public bool ShowHealthText = true;
+    public bool ShowCast = true;
+    public bool HighlightTarget = true;
+    public float MaxDistance = 40f;
+    public float YOffset = 0f;
+    public bool HideGameNameplates = false;
+}
+
+public sealed class EnemyListSettings
+{
+    public bool Enabled = true;
+    public Vector2 Size = new(180, 22);
+    public int Spacing = 3;
+    public int MaxEnemies = 8;
+    public bool GrowUp = false;
+    public bool ShowCast = true;
+    public bool ShowAggro = true;
+    public string LeftText = "{name:18}";
+    public string RightText = "{hp:pct}%";
+    public VisibilitySettings Visibility = new();
+}
+
+public sealed class GcdSettings
+{
+    public bool Enabled = true;
+    public Vector2 Size = new(260, 6);
+    public bool Circle = false;
+    public float CircleRadius = 18f;
+    public bool AttachToMouse = false;
+    public Vector2 MouseOffset = new(0, 30);
+    public Vector4 Color = Colors.Rgb(0xE6E6E6);
+    public VisibilitySettings Visibility = new() { Mode = VisibilityMode.InCombat };
+}
+
+public sealed class SimpleBarSettings
+{
+    public bool Enabled = true;
+    public Vector2 Size = new(260, 8);
+    public Vector4 Color = Colors.Rgb(0x3D8BF2);
+    public bool ShowText = true;
+    public bool HideWhenInactive = true;
+    public VisibilitySettings Visibility = new();
+}
+
+public sealed class HotbarSettings
+{
+    /// <summary>Hotbar number (1-10, 11 = cross hotbar) → when it is shown. Missing = always.</summary>
+    public Dictionary<int, VisibilityMode> Bars = new();
 }
 
 /// <summary>Which parts of the game's own HUD to hide. All off by default.</summary>
@@ -173,6 +327,11 @@ public sealed class DefaultHudSettings
     public bool HideCastBar = false;
     public bool HideParty = false;
     public bool HideStatus = false;
+    public bool HideJobGauge = false;
+    public bool HideEnemyList = false;
+    public bool HideLimitBreak = false;
+    public bool HideExp = false;
+    public bool HidePullTimer = false;
 }
 
 public sealed class LayoutSettings
@@ -214,6 +373,18 @@ public sealed class Profile
     public AuraSettings TargetAuras = new() { GrowUp = true, PerRow = 8, MaxIcons = 16, IconHeight = 30f };
 
     public PartySettings Party = new();
+    public JobGaugeSettings JobGauge = new();
+    public PartyCooldownSettings PartyCooldowns = new();
+    public NameplateSettings Nameplates = new();
+    public EnemyListSettings EnemyList = new();
+
+    public GcdSettings Gcd = new();
+    public SimpleBarSettings MpTicker = new() { Size = new(260, 4), Color = Colors.Rgb(0x7FB2FF), ShowText = false };
+    public SimpleBarSettings LimitBreak = new() { Size = new(300, 10), Color = Colors.Rgb(0xF0A030) };
+    public SimpleBarSettings PullTimer = new() { Size = new(260, 22), Color = Colors.Rgb(0xE8C547) };
+    public SimpleBarSettings Experience = new() { Size = new(500, 8), Color = Colors.Rgb(0xC48BE8), HideWhenInactive = false };
+
+    public HotbarSettings Hotbars = new();
     public DefaultHudSettings DefaultHud = new();
     public LayoutSettings Layout = new();
 }

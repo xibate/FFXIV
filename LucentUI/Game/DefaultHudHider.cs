@@ -22,6 +22,30 @@ public sealed unsafe class DefaultHudHider : IDisposable
     private static readonly string[] CastBarAddons = { "_CastBar" };
     private static readonly string[] PartyAddons = { "_PartyList" };
     private static readonly string[] StatusAddons = { "_Status", "_StatusCustom0", "_StatusCustom1", "_StatusCustom2", "_StatusCustom3" };
+    private static readonly string[] EnemyListAddons = { "_EnemyList" };
+    private static readonly string[] LimitBreakAddons = { "_LimitBreak" };
+    private static readonly string[] ExpAddons = { "_Exp" };
+    private static readonly string[] PullTimerAddons = { "ScreenInfo_CountDown" };
+    private static readonly string[] NameplateAddons = { "NamePlate" };
+
+    /// <summary>Hotbar number (1-10, 11 = cross hotbar) → its addons.</summary>
+    public static readonly string[][] HotbarAddons =
+    {
+        new[] { "_ActionBar" },
+        new[] { "_ActionBar01" },
+        new[] { "_ActionBar02" },
+        new[] { "_ActionBar03" },
+        new[] { "_ActionBar04" },
+        new[] { "_ActionBar05" },
+        new[] { "_ActionBar06" },
+        new[] { "_ActionBar07" },
+        new[] { "_ActionBar08" },
+        new[] { "_ActionBar09" },
+        new[] { "_ActionCross", "_ActionDoubleCrossL", "_ActionDoubleCrossR" },
+    };
+
+    // The game's job gauges are named JobHud<job><n>, with a few exceptions.
+    private static readonly string[] JobGaugeAddons = BuildJobGaugeAddons();
 
     private readonly HashSet<string> hidden = new();
     private readonly HashSet<string> wanted = new();
@@ -43,6 +67,24 @@ public sealed unsafe class DefaultHudHider : IDisposable
             AddIf(hud.HideCastBar && modules.CastBars && profile.PlayerCast.Enabled, CastBarAddons);
             AddIf(hud.HideParty && modules.PartyFrames && profile.Party.Enabled, PartyAddons);
             AddIf(hud.HideStatus && modules.Auras && (profile.PlayerBuffs.Enabled || profile.PlayerDebuffs.Enabled), StatusAddons);
+            AddIf(hud.HideJobGauge && modules.JobGauges && profile.JobGauge.Enabled, JobGaugeAddons);
+            AddIf(hud.HideEnemyList && modules.EnemyList && profile.EnemyList.Enabled, EnemyListAddons);
+            AddIf(hud.HideLimitBreak && modules.Extras && profile.LimitBreak.Enabled, LimitBreakAddons);
+            AddIf(hud.HideExp && modules.Extras && profile.Experience.Enabled, ExpAddons);
+            AddIf(hud.HidePullTimer && modules.Extras && profile.PullTimer.Enabled, PullTimerAddons);
+            AddIf(profile.Nameplates.HideGameNameplates && modules.Nameplates && profile.Nameplates.Enabled, NameplateAddons);
+
+            // Hotbars follow their visibility rule (e.g. only in combat).
+            if (modules.Hotbars)
+            {
+                foreach (var (bar, mode) in profile.Hotbars.Bars)
+                {
+                    if (bar >= 1 && bar <= HotbarAddons.Length && !Hud.Visibility.IsVisible(mode))
+                    {
+                        wanted.UnionWith(HotbarAddons[bar - 1]);
+                    }
+                }
+            }
         }
 
         if (wanted.SetEquals(hidden))
@@ -69,6 +111,31 @@ public sealed unsafe class DefaultHudHider : IDisposable
             Restore(name);
             return true;
         });
+    }
+
+    private static string[] BuildJobGaugeAddons()
+    {
+        var special = new Dictionary<string, string>
+        {
+            ["JobHudPCT0"] = "JobHudRPM0",
+            ["JobHudPCT1"] = "JobHudRPM1",
+            ["JobHudNIN1"] = "JobHudNIN1v70",
+            ["JobHudVPR0"] = "JobHudRDB0",
+            ["JobHudVPR1"] = "JobHudRDB1",
+        };
+
+        var names = new List<string>();
+        foreach (var job in Style.Jobs.CombatJobs)
+        {
+            var abbreviation = Style.Jobs.Get(job).Abbreviation;
+            for (var i = 0; i < 3; i++)
+            {
+                var name = $"JobHud{abbreviation}{i}";
+                names.Add(special.TryGetValue(name, out var renamed) ? renamed : name);
+            }
+        }
+
+        return names.ToArray();
     }
 
     private void AddIf(bool condition, string[] addons)

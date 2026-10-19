@@ -8,6 +8,7 @@ namespace LucentUI.Data;
 
 public struct AuraData
 {
+    public bool CanDispel;
     public uint StatusId;
     public uint SourceId;
     public string Name;
@@ -21,7 +22,7 @@ public struct AuraData
 
 public static class Auras
 {
-    private readonly record struct StatusInfo(string Name, string Description, uint Icon, byte MaxStacks, bool IsDebuff, bool IsPermanent);
+    private readonly record struct StatusInfo(string Name, string Description, uint Icon, byte MaxStacks, bool IsDebuff, bool IsPermanent, bool CanDispel);
 
     private static readonly Dictionary<uint, StatusInfo?> Cache = new();
     private static List<AuraData>? previewAuras;
@@ -70,6 +71,7 @@ public static class Auras
                 IsDebuff = info.IsDebuff,
                 IsMine = mine,
                 IsPermanent = permanent,
+                CanDispel = info.CanDispel,
             });
 
             if (!settings.SortByTime && into.Count >= settings.MaxIcons)
@@ -115,6 +117,10 @@ public static class Auras
         return previewAuras;
     }
 
+    public static uint IconOf(uint statusId) => Info(statusId)?.Icon ?? 0;
+
+    public static bool IsDispellable(uint statusId) => Info(statusId)?.CanDispel ?? false;
+
     private static StatusInfo? Info(uint statusId)
     {
         if (Cache.TryGetValue(statusId, out var cached))
@@ -131,7 +137,8 @@ public static class Auras
                 row.Icon,
                 row.MaxStacks,
                 row.StatusCategory == 2,
-                row.IsPermanent);
+                row.IsPermanent,
+                row.CanDispel);
         }
 
         Cache[statusId] = info;

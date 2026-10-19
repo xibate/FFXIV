@@ -21,6 +21,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WindowSystem windows = new("LucentUI");
     private readonly HudRenderer hud;
     private readonly DefaultHudHider hider;
+    private readonly Data.PartyCooldownTracker cooldowns;
     private readonly OptionsWindow options;
     private uint lastJobId;
 
@@ -31,7 +32,8 @@ public sealed class Plugin : IDalamudPlugin
         Config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Profiles = new ProfileManager(Config);
 
-        hud = new HudRenderer();
+        cooldowns = new Data.PartyCooldownTracker();
+        hud = new HudRenderer(cooldowns);
         hider = new DefaultHudHider();
         options = new OptionsWindow(hud);
         windows.AddWindow(options);
@@ -85,6 +87,7 @@ public sealed class Plugin : IDalamudPlugin
         windows.RemoveAllWindows();
         hider.Dispose();
         hud.Dispose();
+        cooldowns.Dispose();
 
         if (dirty)
         {
@@ -111,7 +114,9 @@ public sealed class Plugin : IDalamudPlugin
             }
         }
 
-        hider.Update(Profiles.Current, Config.General);
+        var profile = Profiles.Current;
+        hider.Update(profile, Config.General);
+        cooldowns.SetEnabled(profile.Modules.PartyCooldowns && profile.PartyCooldowns.Enabled);
 
         if (dirty && DateTime.UtcNow - dirtySince > SaveDelay)
         {
