@@ -54,15 +54,14 @@ For example `{hp} | {hp:pct}%` shows `64.2k | 50%`.
 
 ## Installing
 
-### From a release (custom repository)
+### From the plugin installer (recommended)
 
-1. Push a version tag (for example `git tag v0.1.0.0 && git push origin v0.1.0.0`). The GitHub Action builds the plugin and attaches `latest.zip` to a release.
-2. In game, open `/xlsettings` → **Experimental** → **Custom Plugin Repositories** and add
-   `https://raw.githubusercontent.com/xibate/FFXIV/main/repo.json`
-   (replace `main` with the branch that holds `repo.json`).
-3. Install **LucentUI** from `/xlplugins`.
+1. In game, open `/xlsettings` → **Experimental** → **Custom Plugin Repositories** and add
+   `https://raw.githubusercontent.com/xibate/FFXIV/claude/quirky-volta-q8y8hy/repo.json`
+   then tick **Enabled** and press **Save and Close**.
+2. Open `/xlplugins`, search for **LucentUI** and install it. Updates arrive like any other plugin.
 
-Bump `<Version>` in `LucentUI/LucentUI.csproj` and `AssemblyVersion` in `repo.json` together for each release.
+Publishing a new version: bump `<Version>` in `LucentUI/LucentUI.csproj` and `AssemblyVersion` in `repo.json` together, then push a matching tag (for example `git tag v0.2.0.0 && git push origin v0.2.0.0`). The GitHub Action builds the plugin and attaches `latest.zip` to a release, which is what the installer downloads.
 
 ### As a dev plugin (for development)
 
