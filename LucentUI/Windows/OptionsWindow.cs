@@ -25,6 +25,7 @@ public sealed partial class OptionsWindow : Window
         CastBars,
         Auras,
         JobGauge,
+        CooldownManager,
         PartyCooldowns,
         Nameplates,
         EnemyList,
@@ -39,7 +40,7 @@ public sealed partial class OptionsWindow : Window
     {
         ("GENERAL", new[] { (Page.General, "General"), (Page.Style, "Style") }),
         ("FRAMES", new[] { (Page.Player, "Player"), (Page.Target, "Target"), (Page.TargetOfTarget, "Target of Target"), (Page.Focus, "Focus"), (Page.Party, "Party"), (Page.EnemyList, "Enemy List"), (Page.Nameplates, "Nameplates") }),
-        ("COMBAT", new[] { (Page.JobGauge, "Job Gauge"), (Page.CastBars, "Cast Bars"), (Page.Auras, "Auras"), (Page.PartyCooldowns, "Party Cooldowns"), (Page.Extras, "Extras") }),
+        ("COMBAT", new[] { (Page.JobGauge, "Job Gauge"), (Page.CooldownManager, "Cooldown Manager"), (Page.CastBars, "Cast Bars"), (Page.Auras, "Auras"), (Page.PartyCooldowns, "Party Cooldowns"), (Page.Extras, "Extras") }),
         ("SYSTEM", new[] { (Page.Hotbars, "Hotbars"), (Page.DefaultHud, "Default HUD"), (Page.Profiles, "Profiles"), (Page.About, "About") }),
     };
 
@@ -47,7 +48,7 @@ public sealed partial class OptionsWindow : Window
     private static readonly Page[] SearchablePages =
     {
         Page.General, Page.Style, Page.Player, Page.Target, Page.TargetOfTarget, Page.Focus,
-        Page.Party, Page.EnemyList, Page.Nameplates, Page.JobGauge, Page.CastBars, Page.Auras,
+        Page.Party, Page.EnemyList, Page.Nameplates, Page.JobGauge, Page.CooldownManager, Page.CastBars, Page.Auras,
         Page.PartyCooldowns, Page.Extras, Page.Hotbars, Page.DefaultHud,
     };
 
@@ -258,6 +259,9 @@ public sealed partial class OptionsWindow : Window
             case Page.JobGauge:
                 DrawJobGauge(profile.JobGauge);
                 break;
+            case Page.CooldownManager:
+                DrawCooldownManager(profile.CooldownManager);
+                break;
             case Page.PartyCooldowns:
                 DrawPartyCooldowns(profile.PartyCooldowns);
                 break;
@@ -303,6 +307,7 @@ public sealed partial class OptionsWindow : Window
         Ui.Toggle("Auras", ref profile.Modules.Auras);
         Ui.Toggle("Party Frames", ref profile.Modules.PartyFrames);
         Ui.Toggle("Job Gauges", ref profile.Modules.JobGauges);
+        Ui.Toggle("Cooldown Manager", ref profile.Modules.CooldownManager, "Your own cooldowns and buffs as icon bars.");
         Ui.Toggle("Party Cooldowns", ref profile.Modules.PartyCooldowns);
         Ui.Toggle("Enemy List", ref profile.Modules.EnemyList);
         Ui.Toggle("Nameplates", ref profile.Modules.Nameplates, "Health bars above enemies (and optionally players). Off by default.");

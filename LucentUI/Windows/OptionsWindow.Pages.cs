@@ -52,6 +52,78 @@ public sealed partial class OptionsWindow
         }
     }
 
+    private static void DrawCooldownManager(CooldownManagerSettings s)
+    {
+        Ui.PageHeader("Cooldown Manager", "Your own cooldowns as icon bars with a timer, like EllesmereUI's Cooldown Manager.");
+
+        DrawCooldownBar("Cooldowns Bar", s.Cooldowns, "Your job's abilities with a 30s or longer recast.");
+        DrawCooldownBar("Utility Bar", s.Utility, "Role actions such as Rampart, Feint, Addle or Swiftcast.");
+        DrawCooldownBar("Buffs Bar", s.Buffs, "Buffs you put on yourself, with time left.");
+
+        var player = Svc.ObjectTable.LocalPlayer;
+        if (player == null)
+        {
+            return;
+        }
+
+        var job = player.ClassJob.RowId;
+        var abbreviation = Jobs.Get(job).Abbreviation;
+        var (cooldowns, utility) = JobActions.Selection(s, job);
+        var custom = s.Jobs.ContainsKey(job);
+
+        Ui.Card($"{abbreviation} Actions", custom
+            ? "Your own list for this job. Change where each action goes."
+            : "The automatic list for this job. Changing any action switches this job to your own list.");
+
+        foreach (var action in JobActions.ForJob(job))
+        {
+            var place = cooldowns.Contains(action.Id) ? CooldownPlace.Cooldowns : utility.Contains(action.Id) ? CooldownPlace.Utility : CooldownPlace.Hidden;
+            var label = $"{action.Name} (Lv {action.Level}, {action.Recast:0}s)";
+            if (Ui.Enum(label, ref place))
+            {
+                var selection = JobActions.Customise(s, job);
+                selection.Cooldowns.Remove(action.Id);
+                selection.Utility.Remove(action.Id);
+                if (place == CooldownPlace.Cooldowns)
+                {
+                    selection.Cooldowns.Add(action.Id);
+                }
+                else if (place == CooldownPlace.Utility)
+                {
+                    selection.Utility.Add(action.Id);
+                }
+            }
+        }
+
+        if (custom && Ui.Button("Reset", $"Use the automatic list for {abbreviation}"))
+        {
+            s.Jobs.Remove(job);
+            Plugin.MarkDirty();
+        }
+    }
+
+    private enum CooldownPlace
+    {
+        Hidden,
+        Cooldowns,
+        Utility,
+    }
+
+    private static void DrawCooldownBar(string title, CooldownBarSettings s, string description)
+    {
+        Ui.Card(title, description);
+        Ui.Toggle("Enabled", ref s.Enabled);
+        Ui.Slider("Icon size", ref s.IconSize, 16f, 96f, "%.0f");
+        Ui.Slider("Spacing", ref s.Spacing, 0, 20);
+        Ui.Slider("Rows", ref s.Rows, 1, 4);
+        Ui.Slider("Maximum icons", ref s.MaxIcons, 1, 30, "The bar is sized for this many icons.");
+        Ui.Enum("Align", ref s.Align);
+        Ui.Toggle("Timer text", ref s.ShowCooldownText);
+        Ui.Toggle("Charges", ref s.ShowCharges);
+        Ui.Toggle("Dim while on cooldown", ref s.DimOnCooldown);
+        DrawVisibility(title, s.Visibility);
+    }
+
     private static void DrawPartyCooldowns(PartyCooldownSettings s)
     {
         Ui.PageHeader("Party Cooldowns", "Raid buffs and mitigation from everyone in your party: active, on cooldown or ready.");
@@ -179,9 +251,23 @@ public sealed partial class OptionsWindow
 
     private void ImportEllesmere(string text)
     {
-        var name = importName.Trim().Length > 0 ? importName : "EllesmereUI";
+        var name = importName.Trim();
+        if (name.Length == 0)
+        {
+            // No name typed: pick a free one, so importing again never clashes.
+            name = "EllesmereUI";
+            for (var i = 2; Plugin.Config.Profiles.ContainsKey(name); i++)
+            {
+                name = $"EllesmereUI {i}";
+            }
+        }
         var screen = ImGui.GetMainViewport().Size;
         var ok = Plugin.Profiles.TryImportEllesmere(text, name, screen, out var notes, out var error);
-        Report(ok, $"Imported \"{name}\" from EllesmereUI. Switch to it above to use it.\n" + string.Join("\n", notes), error);
+        if (ok)
+        {
+            Plugin.Profiles.SetActive(name);
+        }
+
+        Report(ok, $"Imported \"{name}\" from EllesmereUI and switched to it.\n" + string.Join("\n", notes), error);
     }
 }

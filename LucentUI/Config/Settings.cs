@@ -92,6 +92,7 @@ public sealed class ModuleSettings
     public bool Auras = true;
     public bool PartyFrames = true;
     public bool JobGauges = true;
+    public bool CooldownManager = true;
     public bool PartyCooldowns = true;
     public bool Nameplates = false;
     public bool EnemyList = true;
@@ -242,6 +243,47 @@ public sealed class JobGaugeSettings
     public VisibilitySettings Visibility = new();
 }
 
+public enum BarAlign
+{
+    Left,
+    Center,
+    Right,
+}
+
+/// <summary>One cooldown/buff icon bar (like EllesmereUI's Cooldown Manager bars).</summary>
+public sealed class CooldownBarSettings
+{
+    public bool Enabled = true;
+    public float IconSize = 42f;
+    public int Spacing = 2;
+    public int Rows = 1;
+
+    /// <summary>Icons the bar's box is sized for; icons are aligned inside it.</summary>
+    public int MaxIcons = 10;
+    public BarAlign Align = BarAlign.Center;
+    public bool ShowCooldownText = true;
+    public bool ShowCharges = true;
+    public bool DimOnCooldown = true;
+    public VisibilitySettings Visibility = new();
+}
+
+/// <summary>Which actions a job shows on the cooldown bars. Only stored once the user changes them.</summary>
+public sealed class JobCooldownSelection
+{
+    public List<uint> Cooldowns = new();
+    public List<uint> Utility = new();
+}
+
+public sealed class CooldownManagerSettings
+{
+    public CooldownBarSettings Cooldowns = new();
+    public CooldownBarSettings Utility = new() { IconSize = 36f, MaxIcons = 8 };
+    public CooldownBarSettings Buffs = new() { IconSize = 32f, MaxIcons = 8 };
+
+    /// <summary>Job id → custom action lists. Jobs without an entry use the automatic list.</summary>
+    public Dictionary<uint, JobCooldownSelection> Jobs = new();
+}
+
 public sealed class PartyCooldownSettings
 {
     public bool Enabled = true;
@@ -374,6 +416,7 @@ public sealed class Profile
 
     public PartySettings Party = new();
     public JobGaugeSettings JobGauge = new();
+    public CooldownManagerSettings CooldownManager = new();
     public PartyCooldownSettings PartyCooldowns = new();
     public NameplateSettings Nameplates = new();
     public EnemyListSettings EnemyList = new();
