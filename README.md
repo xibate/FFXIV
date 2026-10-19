@@ -22,8 +22,10 @@ Inspired by [EllesmereUI](https://github.com/EllesmereGaming/EllesmereUI) for Wo
 
 Core systems, following EllesmereUI's ideas:
 
-- **Unlock Mode** (`/lucent unlock`): drag any element, snap to a grid, nudge with arrow keys (Shift for 10px), right-click to reset, or type exact coordinates in the toolbar.
-- **One style page**: accent colour, borders, rounding, bar styles (flat, gradient, glossy, inset, striped), drop shadows, game fonts and every colour live in one place.
+- **Unlock Mode** (`/lucent unlock`): drag any element, snap to a grid, nudge with arrow keys (Shift for 10px), right-click to reset, or type exact coordinates in the toolbar. Double-click an element to open its settings.
+- **Settings like EllesmereUI's**: pages split into tabs, "Copy from..." another frame or bar, reset a page (Ctrl+click), and a live preview of every element (sample target, casts and party) while the settings window is open.
+- **One style page**: accent colour, borders, rounding, bar textures or bar styles (flat, gradient, glossy, inset, striped), drop shadows, fonts and every colour live in one place.
+- **Media library**: fonts (.ttf, .otf) and status bar textures (.tga, .blp, .png) from LucentUI's media folder and any folder you add. Add your WoW `Interface\AddOns` folder and SharedMedia packs (and EllesmereUI's own media) are available by the same names as in WoW, so imported profiles keep their font and textures. Every bar element can use its own texture.
 - **Profiles**: create, copy, rename, reset, and share them as text (export/import via clipboard). Assign a profile to each job and it loads when you switch.
 - **EllesmereUI import**: paste an EllesmereUI profile string (`!EUI_...`) and it is converted to a LucentUI profile (see below).
 - **Visibility rules** per element: always, in combat, in combat or targeting, out of combat, in duty, or never, with an optional faded opacity instead of hiding.
@@ -42,9 +44,11 @@ Converted:
 - **Cooldown Manager**: the Cooldowns, Utility and Buffs bars' icon size, rows, spacing, position and alignment, including bars attached to the player frame or a resource bar. WoW spells cannot carry over, so the bars fill with your FFXIV job's own cooldowns.
 - **Party frames**: size, spacing, sorting, direction, position, show when solo, hide yourself.
 - **Links**: elements anchored to other elements and matched widths in EllesmereUI's Unlock Mode.
+- **Nameplates**: bar size, text, cast bar, friendly name-only plates and target scale.
+- **Fonts and textures**: the global font and each frame's bar texture, by name. They show once the media is in one of your media folders (Style > Media).
 - Accent colour and text outline. Anything an export leaves out uses EllesmereUI's own default, and sizes and positions are scaled from your WoW UI scale to your screen.
 
-Skipped, because FFXIV has no equivalent or plugins cannot change it: action bars, bags, chat, minimap, quest tracker, damage meters, Blizzard window skins, WoW fonts and textures.
+Skipped, because FFXIV has no equivalent or plugins cannot change it: action bars, bags, chat, minimap, quest tracker, damage meters, Blizzard window skins.
 
 ### Text templates
 

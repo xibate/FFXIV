@@ -49,7 +49,7 @@ public sealed unsafe class NameplatesElement : HudElement
     {
         var s = ctx.Profile.Nameplates;
         var player = Svc.ObjectTable.LocalPlayer;
-        if (player == null || ctx.Preview)
+        if (player == null || UnlockActive)
         {
             return;
         }
@@ -81,6 +81,9 @@ public sealed unsafe class NameplatesElement : HudElement
 
         ctx.Alpha = savedAlpha;
     }
+
+    /// <summary>Plates hide in Unlock Mode, but stay while settings are previewed so changes show on real units.</summary>
+    internal static bool UnlockActive;
 
     private void Collect(NameplateSettings s, IPlayerCharacter player, IGameObject? target)
     {
@@ -199,6 +202,7 @@ public sealed unsafe class NameplatesElement : HudElement
         var hovered = s.Interactive && ctx.Input.HandleUnit(min, min + size, unit.Object, ctx.General);
         UnitBar.Render(ctx, min, size, unit, new UnitBarOptions
         {
+            Texture = s.Texture,
             ShowPower = false,
             LeftText = s.LeftText,
             CenterText = s.CenterText,

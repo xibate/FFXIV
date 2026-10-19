@@ -35,6 +35,9 @@ public struct UnitBarOptions
 
     /// <summary>Key for smooth health animation; 0 turns it off.</summary>
     public long SmoothKey;
+
+    /// <summary>Bar texture name; null or empty uses the profile's.</summary>
+    public string? Texture;
 }
 
 /// <summary>Draws a health (+ optional power) bar for a unit. Shared by unit frames and party frames.</summary>
@@ -42,6 +45,7 @@ public static class UnitBar
 {
     public static void Render(DrawContext ctx, Vector2 pos, Vector2 size, in UnitData unit, in UnitBarOptions o)
     {
+        using var barTexture = ctx.UseTexture(o.Texture);
         var s = ctx.Style;
         var savedAlpha = ctx.Alpha;
         if (o.FadeOutOfRange && !unit.InRange)

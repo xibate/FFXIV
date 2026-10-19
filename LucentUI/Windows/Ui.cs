@@ -319,6 +319,135 @@ internal static partial class Ui
     public static bool Button(string label, string buttonText, string? help = null) =>
         Row(label, help) && ImGui.Button(buttonText + "##" + label, new Vector2(-1, 0));
 
+    // ── Media ────────────────────────────────────────────────────────────────
+
+    private static string mediaFilter = string.Empty;
+
+    /// <summary>
+    /// Picks a font or bar texture from the media library by name, with a search box and previews. Empty means
+    /// <paramref name="defaultLabel"/> (the game font or the profile's texture).
+    /// </summary>
+    public static bool MediaPicker(string label, ref string value, bool fonts, string defaultLabel, string? help = null)
+    {
+        if (!Row(label, help))
+        {
+            return false;
+        }
+
+        var media = Plugin.Media;
+        var names = fonts ? media.FontNames : media.TextureNames;
+        var known = string.IsNullOrEmpty(value) || (fonts ? media.HasFont(value) : media.HasTexture(value));
+        var preview = string.IsNullOrEmpty(value) ? defaultLabel : known ? value : value + " (not found)";
+        var changed = false;
+
+        ImGui.SetNextWindowSizeConstraints(new Vector2(0, 0), new Vector2(float.MaxValue, 360));
+        if (ImGui.BeginCombo("##" + label, preview, ImGuiComboFlags.HeightLargest))
+        {
+            if (ImGui.IsWindowAppearing())
+            {
+                mediaFilter = string.Empty;
+                ImGui.SetKeyboardFocusHere();
+            }
+
+            ImGui.SetNextItemWidth(-1);
+            ImGui.InputTextWithHint("##filter", names.Count > 0 ? $"Search {names.Count} {(fonts ? "fonts" : "textures")}..." : "Nothing found yet: add a media folder on the Style page", ref mediaFilter, 64);
+
+            if (ImGui.Selectable(defaultLabel, string.IsNullOrEmpty(value)))
+            {
+                value = string.Empty;
+                changed = true;
+            }
+
+            var shown = 0;
+            foreach (var name in names)
+            {
+                if (mediaFilter.Length > 0 && !name.Contains(mediaFilter, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (++shown > 300)
+                {
+                    ImGui.TextDisabled("More found: type to narrow it down.");
+                    break;
+                }
+
+                var start = ImGui.GetCursorScreenPos();
+                if (ImGui.Selectable(name + "##media", name.Equals(value, StringComparison.OrdinalIgnoreCase)))
+                {
+                    value = name;
+                    changed = true;
+                }
+
+                // Texture preview on the right of the row, tinted with the accent colour.
+                if (!fonts && ImGui.IsItemVisible() && media.Texture(name) is { } texture)
+                {
+                    var width = ImGui.GetContentRegionAvail().X;
+                    var height = ImGui.GetTextLineHeight();
+                    var min = new Vector2(start.X + Math.Max(140f, width * 0.45f), start.Y + 2);
+                    var max = new Vector2(start.X + width, start.Y + height - 2);
+                    if (max.X > min.X)
+                    {
+                        ImGui.GetWindowDrawList().AddImage(texture.Handle, min, max, Vector2.Zero, Vector2.One, Colors.ToU32(Accent));
+                    }
+                }
+            }
+
+            ImGui.EndCombo();
+        }
+
+        return Changed(changed);
+    }
+
+    // ── Tabs ─────────────────────────────────────────────────────────────────
+
+    private static readonly Dictionary<string, int> TabState = new();
+
+    /// <summary>
+    /// A row of tabs for a page. Returns the selected tab, or -1 while searching (every tab's settings show).
+    /// </summary>
+    public static int Tabs(string id, params string[] names)
+    {
+        if (Searching)
+        {
+            return -1;
+        }
+
+        EndCard();
+        TabState.TryGetValue(id, out var selected);
+        selected = Math.Clamp(selected, 0, names.Length - 1);
+
+        ImGui.PushID("tabs_" + id);
+        for (var i = 0; i < names.Length; i++)
+        {
+            if (i > 0)
+            {
+                ImGui.SameLine(0, 4);
+            }
+
+            var active = i == selected;
+            ImGui.PushStyleColor(ImGuiCol.Button, active ? Colors.WithAlpha(Accent, 0.55f) : new Vector4(1, 1, 1, 0.05f));
+            ImGui.PushStyleColor(ImGuiCol.Text, active ? Vector4.One : new Vector4(1, 1, 1, 0.75f));
+            if (ImGui.Button(names[i]))
+            {
+                selected = i;
+            }
+
+            ImGui.PopStyleColor(2);
+        }
+
+        ImGui.PopID();
+        TabState[id] = selected;
+        ImGui.Dummy(new Vector2(0, 4));
+        return selected;
+    }
+
+    /// <summary>True when the settings of tab <paramref name="index"/> should be drawn.</summary>
+    public static bool Tab(int selected, int index) => selected < 0 || selected == index;
+
+    /// <summary>Opens a tab next time its page draws (used to jump to an element's settings).</summary>
+    public static void OpenTab(string id, int index) => TabState[id] = index;
+
     // ── Page chrome ──────────────────────────────────────────────────────────
 
     public static void PageHeader(string title, string subtitle)

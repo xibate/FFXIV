@@ -63,7 +63,7 @@ public static class Gfx
     }
 
     /// <summary>Fills a rectangle in the profile's bar style.</summary>
-    public static void Fill(DrawContext ctx, Vector2 min, Vector2 max, Vector4 color, bool allowGradient = true)
+    public static void Fill(DrawContext ctx, Vector2 min, Vector2 max, Vector4 color, bool allowGradient = true, float uvStart = 0f, float uvEnd = 1f)
     {
         if (max.X - min.X < 0.5f || max.Y - min.Y < 0.5f)
         {
@@ -72,6 +72,13 @@ public static class Gfx
 
         var s = ctx.Style;
         var dl = ctx.DrawList;
+
+        // A bar texture (from the media library) tinted with the bar's colour, cropped like a WoW status bar.
+        if (allowGradient && ctx.BarTexture() is { } texture)
+        {
+            dl.AddImage(texture.Handle, min, max, new Vector2(uvStart, 0f), new Vector2(uvEnd, 1f), ctx.Col(color));
+            return;
+        }
         var style = allowGradient && s.Rounding <= 0f ? s.BarStyle : BarStyle.Flat;
         var strength = s.GradientStrength;
 
@@ -133,11 +140,11 @@ public static class Gfx
         var width = MathF.Round((max.X - min.X) * fraction);
         if (reverse)
         {
-            Fill(ctx, new Vector2(max.X - width, min.Y), max, color);
+            Fill(ctx, new Vector2(max.X - width, min.Y), max, color, true, 1f - fraction, 1f);
         }
         else
         {
-            Fill(ctx, min, new Vector2(min.X + width, max.Y), color);
+            Fill(ctx, min, new Vector2(min.X + width, max.Y), color, true, 0f, fraction);
         }
     }
 

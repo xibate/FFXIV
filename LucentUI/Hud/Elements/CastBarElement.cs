@@ -52,6 +52,7 @@ public sealed class CastBarElement : HudElement
     public override void Draw(DrawContext ctx, Vector2 pos)
     {
         var s = Settings(ctx.Profile);
+        using var barTexture = ctx.UseTexture(s.Texture);
         if (!Casts.TryGet(Units.Get(kind), out var cast))
         {
             if (!ctx.Preview)

@@ -174,6 +174,12 @@ public sealed class StyleSettings
     public bool SmoothBars = true;
 
     public FontFamily Font = FontFamily.Axis;
+
+    /// <summary>A font from the media library by name; empty uses <see cref="Font"/>.</summary>
+    public string FontName = string.Empty;
+
+    /// <summary>A bar texture from the media library by name; empty uses <see cref="BarStyle"/>.</summary>
+    public string BarTexture = string.Empty;
     public int FontSize = 16;
     public int SmallFontSize = 13;
     public bool TextOutline = true;
@@ -201,6 +207,9 @@ public sealed class StyleSettings
 
 public sealed class UnitFrameSettings
 {
+    /// <summary>Bar texture for this element; empty uses the profile's.</summary>
+    public string Texture = string.Empty;
+
     public bool Enabled = true;
     public Vector2 Size = new(260, 46);
     public bool ShowPower = true;
@@ -224,6 +233,9 @@ public sealed class UnitFrameSettings
 
 public sealed class CastBarSettings
 {
+    /// <summary>Bar texture for this element; empty uses the profile's.</summary>
+    public string Texture = string.Empty;
+
     public bool Enabled = true;
     public Vector2 Size = new(300, 20);
     public bool ShowIcon = true;
@@ -269,6 +281,9 @@ public sealed class AuraSettings
 
 public sealed class PartySettings
 {
+    /// <summary>Bar texture for this element; empty uses the profile's.</summary>
+    public string Texture = string.Empty;
+
     public bool Enabled = true;
     public Vector2 Size = new(190, 38);
     public int Spacing = 4;
@@ -322,6 +337,9 @@ public sealed class GaugePartSettings
 
 public sealed class JobGaugeSettings
 {
+    /// <summary>Bar texture for this element; empty uses the profile's.</summary>
+    public string Texture = string.Empty;
+
     public bool Enabled = true;
     public float Width = 260f;
     public float BarHeight = 14f;
@@ -428,6 +446,9 @@ public enum PlateMode
 
 public sealed class NameplateSettings
 {
+    /// <summary>Bar texture for this element; empty uses the profile's.</summary>
+    public string Texture = string.Empty;
+
     public bool Enabled = true;
 
     // Who gets a plate, and what kind.

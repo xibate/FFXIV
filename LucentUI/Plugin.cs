@@ -6,6 +6,7 @@ using Dalamud.Plugin.Services;
 using LucentUI.Config;
 using LucentUI.Game;
 using LucentUI.Hud;
+using LucentUI.Style;
 using LucentUI.Windows;
 
 namespace LucentUI;
@@ -33,6 +34,8 @@ public sealed class Plugin : IDalamudPlugin
 
         Config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Profiles = new ProfileManager(Config);
+        Media = new MediaLibrary(System.IO.Path.Combine(pluginInterface.GetPluginConfigDirectory(), "Media"));
+        Media.Rescan(Config.MediaFolders);
 
         cooldowns = new Data.PartyCooldownTracker();
         hud = new HudRenderer(cooldowns);
@@ -41,6 +44,7 @@ public sealed class Plugin : IDalamudPlugin
         options = new OptionsWindow(hud);
         windows.AddWindow(options);
         hud.Unlock.OpenSettingsRequested += () => options.Open();
+        hud.Unlock.OpenElementSettingsRequested += options.OpenFor;
 
         Svc.CommandManager.AddHandler(Command, new CommandInfo(OnCommand)
         {
@@ -61,6 +65,9 @@ public sealed class Plugin : IDalamudPlugin
     internal static Configuration Config { get; private set; } = null!;
 
     internal static ProfileManager Profiles { get; private set; } = null!;
+
+    /// <summary>Fonts and bar textures from media folders.</summary>
+    internal static MediaLibrary Media { get; private set; } = null!;
 
     /// <summary>Schedules a config save shortly after the last change.</summary>
     public static void MarkDirty()
@@ -90,6 +97,7 @@ public sealed class Plugin : IDalamudPlugin
         windows.RemoveAllWindows();
         hider.Dispose();
         nameplateHider.Dispose();
+        Media.Dispose();
         hud.Dispose();
         cooldowns.Dispose();
         mouseover.Dispose();

@@ -75,7 +75,11 @@ public sealed partial class OptionsWindow : Window
         };
     }
 
-    public override void OnClose() => Plugin.SaveNow();
+    public override void OnClose()
+    {
+        hud.SettingsPreview = false;
+        Plugin.SaveNow();
+    }
 
     public override void PreDraw()
     {
@@ -119,6 +123,40 @@ public sealed partial class OptionsWindow : Window
         pushedColors = 0;
     }
 
+    /// <summary>Opens the settings page (and tab) of one HUD element, e.g. from Unlock Mode.</summary>
+    public void OpenFor(string elementId)
+    {
+        IsOpen = true;
+        search = string.Empty;
+        (page, var tabId, var tab) = elementId switch
+        {
+            "unit.player" => (Page.Player, null, 0),
+            "unit.target" => (Page.Target, null, 0),
+            "unit.tot" => (Page.TargetOfTarget, null, 0),
+            "unit.focus" => (Page.Focus, null, 0),
+            "party" => (Page.Party, null, 0),
+            "cast.player" => (Page.CastBars, "cast", 0),
+            "cast.target" => (Page.CastBars, "cast", 1),
+            "cast.focus" => (Page.CastBars, "cast", 2),
+            "auras.player.buffs" => (Page.Auras, "auras", 0),
+            "auras.player.debuffs" => (Page.Auras, "auras", 1),
+            "auras.target" => (Page.Auras, "auras", 2),
+            "cdm.cooldowns" => (Page.CooldownManager, "cdm", 0),
+            "cdm.utility" => (Page.CooldownManager, "cdm", 1),
+            "cdm.buffs" => (Page.CooldownManager, "cdm", 2),
+            "partycooldowns" => (Page.PartyCooldowns, null, 0),
+            "enemylist" => (Page.EnemyList, null, 0),
+            "nameplates" => (Page.Nameplates, null, 0),
+            _ when elementId == "jobgauge" || elementId.StartsWith("gauge.", StringComparison.Ordinal) => (Page.JobGauge, (string?)"jobgauge", elementId == "jobgauge" ? 0 : 1),
+            _ => (Page.Extras, null, 0),
+        };
+
+        if (tabId != null)
+        {
+            Ui.OpenTab(tabId, tab);
+        }
+    }
+
     public void Open(bool general = false)
     {
         IsOpen = true;
@@ -130,6 +168,7 @@ public sealed partial class OptionsWindow : Window
 
     public override void Draw()
     {
+        hud.SettingsPreview = Plugin.Config.PreviewWhileEditing;
         var sidebarWidth = 190f;
 
         using (var sidebar = ImRaii.Child("##sidebar", new Vector2(sidebarWidth, 0), false))
@@ -188,6 +227,16 @@ public sealed partial class OptionsWindow : Window
         }
 
         ImGui.PopStyleColor();
+        if (ImGui.Checkbox("Preview frames", ref Plugin.Config.PreviewWhileEditing))
+        {
+            Plugin.MarkDirty();
+        }
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("While this window is open, show every element with sample data (a target, casts, a party) so you can see your changes.");
+        }
+
         ImGui.Spacing();
 
         foreach (var (group, items) in Navigation)
@@ -350,84 +399,240 @@ public sealed partial class OptionsWindow : Window
         }
     }
 
-    private static void DrawStyle(StyleSettings s)
+    private void DrawStyle(StyleSettings s)
     {
         Ui.PageHeader("Style", "One place for the look of every element.");
+        CopyAndReset("style", s, () => new Profile().Style);
+        var tab = Ui.Tabs("style", "Look", "Text", "Colours", "Media");
 
-        Ui.Card("Theme");
-        Ui.Color("Accent", ref s.Accent, "Used for highlights, the settings window and Unlock Mode.");
-        Ui.Color("Background", ref s.Background);
-        Ui.Color("Border", ref s.Border);
-        Ui.Slider("Border size", ref s.BorderSize, 0, 4);
-        Ui.Slider("Corner rounding", ref s.Rounding, 0f, 12f, "%.0f", "Rounded corners turn off the bar gradient.");
-        Ui.Enum("Bar style", ref s.BarStyle, "Rounded corners always draw flat bars.");
-        Ui.Percent("Style strength", ref s.GradientStrength, "How strong the gradient, gloss or stripes are.");
-        Ui.Slider("Shadow size", ref s.ShadowSize, 0, 8, "A soft drop shadow behind every frame. 0 turns it off.");
-        Ui.Color("Shadow colour", ref s.ShadowColor);
-        Ui.Toggle("Smooth bars", ref s.SmoothBars, "Health bars slide to their new value instead of jumping.");
+        if (Ui.Tab(tab, 0))
+        {
+            Ui.Card("Theme");
+            Ui.Color("Accent", ref s.Accent, "Used for highlights, the settings window and Unlock Mode.");
+            Ui.Color("Background", ref s.Background);
+            Ui.Color("Border", ref s.Border);
+            Ui.Slider("Border size", ref s.BorderSize, 0, 4);
+            Ui.Slider("Corner rounding", ref s.Rounding, 0f, 12f, "%.0f", "Rounded corners turn off the bar gradient.");
+            Ui.Slider("Shadow size", ref s.ShadowSize, 0, 8, "A soft drop shadow behind every frame. 0 turns it off.");
+            Ui.Color("Shadow colour", ref s.ShadowColor);
 
-        Ui.Card("Text");
-        Ui.Enum("Font", ref s.Font, "The game's own fonts. TrumpGothic and Jupiter are condensed, MiedingerMid is the number font.");
-        Ui.Slider("Font size", ref s.FontSize, 8, 40);
-        Ui.Slider("Small font size", ref s.SmallFontSize, 8, 40, "Used for aura timers.");
-        Ui.Toggle("Text outline", ref s.TextOutline);
-        Ui.Toggle("Short numbers", ref s.AbbreviateNumbers, "Show 45.2k instead of 45,213.");
+            Ui.Card("Bars");
+            Ui.MediaPicker("Bar texture", ref s.BarTexture, false, "None (use bar style)", "A status bar texture from your media folders, tinted with each bar's colour. Elements can pick their own.");
+            Ui.Enum("Bar style", ref s.BarStyle, "Used when no bar texture is picked. Rounded corners always draw flat bars.");
+            Ui.Percent("Style strength", ref s.GradientStrength, "How strong the gradient, gloss or stripes are.");
+            Ui.Toggle("Smooth bars", ref s.SmoothBars, "Health bars slide to their new value instead of jumping.");
+        }
 
-        Ui.Card("Health Colours");
-        Ui.Enum("Colour by", ref s.HealthColors, "Frames set to Inherit use this.");
-        Ui.Color("Flat colour", ref s.FlatHealth);
-        Ui.Color("Dark mode fill", ref s.DarkFill);
-        Ui.Color("Hostile", ref s.Hostile);
-        Ui.Color("Neutral", ref s.Neutral);
-        Ui.Color("Friendly NPC", ref s.Friendly);
-        Ui.Color("Dead", ref s.Dead);
-        Ui.Color("Shield", ref s.Shield);
-        Ui.Percent("Out of range opacity", ref s.OutOfRangeAlpha);
+        if (Ui.Tab(tab, 1))
+        {
+            Ui.Card("Text");
+            Ui.MediaPicker("Font", ref s.FontName, true, "Game font: " + Ui.PrettyName(s.Font), "A .ttf or .otf font from your media folders. Empty uses the game font below.");
+            if (string.IsNullOrEmpty(s.FontName))
+            {
+                Ui.Enum("Game font", ref s.Font, "TrumpGothic and Jupiter are condensed, MiedingerMid is the number font.");
+            }
 
-        Ui.Card("Resource Colours");
-        Ui.Color("Mana", ref s.Mana);
-        Ui.Color("GP", ref s.Gp);
-        Ui.Color("CP", ref s.Cp);
+            Ui.Slider("Font size", ref s.FontSize, 8, 40);
+            Ui.Slider("Small font size", ref s.SmallFontSize, 8, 40, "Used for aura and cooldown timers.");
+            Ui.Toggle("Text outline", ref s.TextOutline);
+            Ui.Toggle("Short numbers", ref s.AbbreviateNumbers, "Show 45.2k instead of 45,213.");
+        }
 
-        Ui.Card("Cast Colours");
-        Ui.Color("Cast", ref s.Cast);
-        Ui.Color("Interruptible", ref s.CastInterruptible);
-        Ui.Color("Slidecast window", ref s.Slidecast);
+        if (Ui.Tab(tab, 2))
+        {
+            Ui.Card("Health Colours");
+            Ui.Enum("Colour by", ref s.HealthColors, "Frames set to Inherit use this.");
+            Ui.Color("Flat colour", ref s.FlatHealth);
+            Ui.Color("Dark mode fill", ref s.DarkFill);
+            Ui.Color("Hostile", ref s.Hostile);
+            Ui.Color("Neutral", ref s.Neutral);
+            Ui.Color("Friendly NPC", ref s.Friendly);
+            Ui.Color("Dead", ref s.Dead);
+            Ui.Color("Shield", ref s.Shield);
+            Ui.Percent("Out of range opacity", ref s.OutOfRangeAlpha);
+
+            Ui.Card("Resource Colours");
+            Ui.Color("Mana", ref s.Mana);
+            Ui.Color("GP", ref s.Gp);
+            Ui.Color("CP", ref s.Cp);
+
+            Ui.Card("Cast Colours");
+            Ui.Color("Cast", ref s.Cast);
+            Ui.Color("Interruptible", ref s.CastInterruptible);
+            Ui.Color("Slidecast window", ref s.Slidecast);
+        }
+
+        if (Ui.Tab(tab, 3))
+        {
+            DrawMedia();
+        }
+    }
+
+    private string newMediaFolder = string.Empty;
+
+    private void DrawMedia()
+    {
+        var media = Plugin.Media;
+        var folders = Plugin.Config.MediaFolders;
+
+        Ui.Card("Media Folders", "Fonts (.ttf, .otf) and bar textures (.tga, .blp, .png) are found in these folders and everything below them. Add your WoW Interface\\AddOns folder to use SharedMedia packs and EllesmereUI's media by the same names as in WoW.");
+        Ui.Button("Status", media.Scanning ? "Scanning..." : media.Status);
+        if (Ui.Button("LucentUI media folder", "Open"))
+        {
+            System.IO.Directory.CreateDirectory(media.DefaultFolder);
+            Dalamud.Utility.Util.OpenLink(media.DefaultFolder);
+        }
+
+        foreach (var folder in folders.ToList())
+        {
+            if (Ui.Button(folder, "Remove"))
+            {
+                folders.Remove(folder);
+                Plugin.MarkDirty();
+                media.Rescan(folders);
+            }
+        }
+
+        Ui.Text("Add a folder", ref newMediaFolder, "Paste a folder path, e.g. C:\\Program Files (x86)\\World of Warcraft\\_retail_\\Interface\\AddOns", "Folder path");
+        if (Ui.Button("Add", "Add folder and scan"))
+        {
+            var folder = newMediaFolder.Trim().Trim('"');
+            if (folder.Length > 0 && !folders.Contains(folder, StringComparer.OrdinalIgnoreCase))
+            {
+                folders.Add(folder);
+                Plugin.MarkDirty();
+            }
+
+            newMediaFolder = string.Empty;
+            media.Rescan(folders);
+        }
+
+        if (Ui.Button("Rescan", "Look for new files"))
+        {
+            media.Rescan(folders);
+        }
+    }
+
+    /// <summary>"Copy from..." and "Reset" buttons for a page's settings.</summary>
+    private static void CopyAndReset<T>(string id, T target, Func<T> defaults, params (string Name, T Source)[] sources)
+        where T : class
+    {
+        if (Ui.Searching)
+        {
+            return;
+        }
+
+        Ui.EndCard();
+        ImGui.PushID("actions_" + id);
+        if (sources.Length > 0)
+        {
+            if (ImGui.Button("Copy from..."))
+            {
+                ImGui.OpenPopup("copy");
+            }
+
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("Copy every setting on this page from another element.");
+            }
+
+            if (ImGui.BeginPopup("copy"))
+            {
+                foreach (var (name, source) in sources)
+                {
+                    if (!ReferenceEquals(source, target) && ImGui.Selectable(name))
+                    {
+                        SettingsCopy.Into(source, target);
+                        Plugin.MarkDirty();
+                    }
+                }
+
+                ImGui.EndPopup();
+            }
+
+            ImGui.SameLine();
+        }
+
+        var ctrl = ImGui.GetIO().KeyCtrl;
+        if (ImGui.Button("Reset") && ctrl)
+        {
+            SettingsCopy.Into(defaults(), target);
+            Plugin.MarkDirty();
+        }
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip(ctrl ? "Reset this page to its defaults." : "Hold Ctrl and click to reset this page to its defaults.");
+        }
+
+        ImGui.SameLine();
+        ImGui.TextDisabled("Tip: Ctrl+click a slider to type a value.");
+        ImGui.PopID();
+        ImGui.Dummy(new Vector2(0, 2));
     }
 
     private static void DrawUnitFrame(string title, string subtitle, UnitFrameSettings s, bool isPlayer)
     {
+        var profile = Plugin.Profiles.Current;
         Ui.PageHeader(title, subtitle);
-        ModuleSwitch("Unit frames", ref Plugin.Profiles.Current.Modules.UnitFrames);
+        ModuleSwitch("Unit frames", ref profile.Modules.UnitFrames);
+        CopyAndReset("unit_" + title, s, () => DefaultFrame(s),
+            ("Player", profile.Player), ("Target", profile.Target), ("Target of Target", profile.TargetOfTarget), ("Focus", profile.Focus));
+        var tab = Ui.Tabs("unit", "Frame", "Bars", "Text", "Visibility");
 
-        Ui.Card(title + " Frame");
-        Ui.Toggle("Enabled", ref s.Enabled);
-        Ui.Size("Size", ref s.Size, "Width and height in pixels.");
-        Ui.Enum("Health colour", ref s.ColorMode);
-        Ui.Toggle("Show shield", ref s.ShowShield);
-        Ui.Toggle("Fill right to left", ref s.ReverseFill);
-        Ui.Enum("Job icon", ref s.JobIcon, "A job icon portrait beside the bars.");
-        Ui.Toggle("Own background colour", ref s.CustomBackground);
-        if (s.CustomBackground)
+        if (Ui.Tab(tab, 0))
         {
-            Ui.Color("Background colour", ref s.Background);
+            Ui.Card(title + " Frame");
+            Ui.Toggle("Enabled", ref s.Enabled);
+            Ui.Size("Size", ref s.Size, "Width and height in pixels.");
+            Ui.Enum("Job icon", ref s.JobIcon, "A job icon portrait beside the bars.");
+            Ui.Toggle("Own background colour", ref s.CustomBackground);
+            if (s.CustomBackground)
+            {
+                Ui.Color("Background colour", ref s.Background);
+            }
+
+            if (!isPlayer)
+            {
+                Ui.Toggle("Clickable", ref s.Interactive, "Click to target, right-click menu, mouseover and mouseover casting.");
+            }
         }
 
-        if (!isPlayer)
+        if (Ui.Tab(tab, 1))
         {
-            Ui.Toggle("Clickable", ref s.Interactive, "Click to target, right-click menu, mouseover and mouseover casting.");
+            Ui.Card(title + " Health");
+            Ui.MediaPicker("Bar texture", ref s.Texture, false, "Profile texture", "Empty uses the texture from the Style page.");
+            Ui.Enum("Health colour", ref s.ColorMode);
+            Ui.Toggle("Show shield", ref s.ShowShield);
+            Ui.Toggle("Fill right to left", ref s.ReverseFill);
+
+            Ui.Card(title + " Power", "Mana, GP or CP.");
+            Ui.Toggle("Show power bar", ref s.ShowPower);
+            Ui.Enum("Power bar position", ref s.PowerPosition);
+            Ui.Slider("Power bar height", ref s.PowerHeight, 1, 30);
         }
 
-        Ui.Card(title + " Power", "Mana, GP or CP.");
-        Ui.Toggle("Show power bar", ref s.ShowPower);
-        Ui.Enum("Power bar position", ref s.PowerPosition);
-        Ui.Slider("Power bar height", ref s.PowerHeight, 1, 30);
+        if (Ui.Tab(tab, 2))
+        {
+            DrawTextSlot(title + " Left Text", ref s.LeftText, s.LeftStyle);
+            DrawTextSlot(title + " Centre Text", ref s.CenterText, s.CenterStyle);
+            DrawTextSlot(title + " Right Text", ref s.RightText, s.RightStyle);
+        }
 
-        DrawTextSlot(title + " Left Text", ref s.LeftText, s.LeftStyle);
-        DrawTextSlot(title + " Centre Text", ref s.CenterText, s.CenterStyle);
-        DrawTextSlot(title + " Right Text", ref s.RightText, s.RightStyle);
+        if (Ui.Tab(tab, 3))
+        {
+            DrawVisibility(title, s.Visibility);
+        }
+    }
 
-        DrawVisibility(title, s.Visibility);
+    private static UnitFrameSettings DefaultFrame(UnitFrameSettings s)
+    {
+        var profile = Plugin.Profiles.Current;
+        var defaults = new Profile();
+        return ReferenceEquals(s, profile.Player) ? defaults.Player
+            : ReferenceEquals(s, profile.Target) ? defaults.Target
+            : ReferenceEquals(s, profile.TargetOfTarget) ? defaults.TargetOfTarget
+            : defaults.Focus;
     }
 
     private static void DrawVisibility(string title, VisibilitySettings v)
@@ -449,51 +654,82 @@ public sealed partial class OptionsWindow : Window
     {
         Ui.PageHeader("Party", "Party frames with role sorting and range fading.");
         ModuleSwitch("Party frames", ref Plugin.Profiles.Current.Modules.PartyFrames);
+        CopyAndReset("party", s, () => new Profile().Party);
+        var tab = Ui.Tabs("party", "Layout", "Health", "Text", "Trackers", "Visibility");
 
-        Ui.Card("Party Frames");
-        Ui.Toggle("Enabled", ref s.Enabled);
-        Ui.Size("Member size", ref s.Size);
-        Ui.Slider("Spacing", ref s.Spacing, 0, 30);
-        Ui.Toggle("Horizontal", ref s.Horizontal);
-        Ui.Enum("Sort by", ref s.Sort);
-        Ui.Toggle("Include yourself", ref s.IncludePlayer);
-        Ui.Toggle("Show when solo", ref s.ShowWhenSolo);
+        if (Ui.Tab(tab, 0))
+        {
+            Ui.Card("Party Frames");
+            Ui.Toggle("Enabled", ref s.Enabled);
+            Ui.Size("Member size", ref s.Size);
+            Ui.Slider("Spacing", ref s.Spacing, 0, 30);
+            Ui.Toggle("Horizontal", ref s.Horizontal);
+            Ui.Enum("Sort by", ref s.Sort);
+            Ui.Toggle("Include yourself", ref s.IncludePlayer);
+            Ui.Toggle("Show when solo", ref s.ShowWhenSolo);
+            Ui.Toggle("Clickable", ref s.Interactive);
+            Ui.Toggle("Job icon", ref s.ShowJobIcon);
+        }
 
-        Ui.Card("Party Health");
-        Ui.Enum("Health colour", ref s.ColorMode);
-        Ui.Toggle("Show shield", ref s.ShowShield);
-        Ui.Toggle("Fade out of range", ref s.RangeFade, "Members further than 30 yalms fade out.");
-        Ui.Toggle("Highlight target", ref s.HighlightTarget);
-        Ui.Toggle("Clickable", ref s.Interactive);
-        Ui.Toggle("Show power bar", ref s.ShowPower);
-        Ui.Slider("Power bar height", ref s.PowerHeight, 1, 20);
-        Ui.Toggle("Job icon", ref s.ShowJobIcon);
+        if (Ui.Tab(tab, 1))
+        {
+            Ui.Card("Party Health");
+            Ui.MediaPicker("Bar texture", ref s.Texture, false, "Profile texture", "Empty uses the texture from the Style page.");
+            Ui.Enum("Health colour", ref s.ColorMode);
+            Ui.Toggle("Show shield", ref s.ShowShield);
+            Ui.Toggle("Fade out of range", ref s.RangeFade, "Members further than 30 yalms fade out.");
+            Ui.Toggle("Highlight target", ref s.HighlightTarget);
+            Ui.Toggle("Show power bar", ref s.ShowPower);
+            Ui.Slider("Power bar height", ref s.PowerHeight, 1, 20);
+        }
 
-        Ui.Card("Party Trackers");
-        Ui.Toggle("Raise", ref s.ShowRaise, "Shows when a dead member has a raise waiting or one is being cast on them.");
-        Ui.Toggle("Invulnerability", ref s.ShowInvulnerability, "Hallowed Ground, Holmgang, Living Dead and Superbolide.");
-        Ui.Toggle("Cleansable debuffs", ref s.ShowCleansable, "Outlines members with a debuff Esuna can remove.");
-        Ui.Toggle("Only if I can cleanse", ref s.CleansableOnlyIfICanCleanse, "Healers and bards.");
-        Ui.Color("Cleansable colour", ref s.CleansableColor);
-        Ui.Toggle("Ready check", ref s.ShowReadyCheck);
-        Ui.Toggle("Debuff icons", ref s.ShowDebuffs);
-        Ui.Slider("Debuffs per member", ref s.MaxDebuffs, 1, 8);
-        Ui.Slider("Debuff icon height", ref s.DebuffIconHeight, 10f, 64f, "%.0f");
+        if (Ui.Tab(tab, 2))
+        {
+            DrawTextSlot("Party Left Text", ref s.LeftText, s.LeftStyle);
+            DrawTextSlot("Party Center Text", ref s.CenterText, s.CenterStyle);
+            DrawTextSlot("Party Right Text", ref s.RightText, s.RightStyle);
+        }
 
-        DrawTextSlot("Party Left Text", ref s.LeftText, s.LeftStyle);
-        DrawTextSlot("Party Center Text", ref s.CenterText, s.CenterStyle);
-        DrawTextSlot("Party Right Text", ref s.RightText, s.RightStyle);
+        if (Ui.Tab(tab, 3))
+        {
+            Ui.Card("Party Trackers");
+            Ui.Toggle("Raise", ref s.ShowRaise, "Shows when a dead member has a raise waiting or one is being cast on them.");
+            Ui.Toggle("Invulnerability", ref s.ShowInvulnerability, "Hallowed Ground, Holmgang, Living Dead and Superbolide.");
+            Ui.Toggle("Cleansable debuffs", ref s.ShowCleansable, "Outlines members with a debuff Esuna can remove.");
+            Ui.Toggle("Only if I can cleanse", ref s.CleansableOnlyIfICanCleanse, "Healers and bards.");
+            Ui.Color("Cleansable colour", ref s.CleansableColor);
+            Ui.Toggle("Ready check", ref s.ShowReadyCheck);
+            Ui.Toggle("Debuff icons", ref s.ShowDebuffs);
+            Ui.Slider("Debuffs per member", ref s.MaxDebuffs, 1, 8);
+            Ui.Slider("Debuff icon height", ref s.DebuffIconHeight, 10f, 64f, "%.0f");
+        }
 
-        DrawVisibility("Party", s.Visibility);
+        if (Ui.Tab(tab, 4))
+        {
+            DrawVisibility("Party", s.Visibility);
+        }
     }
 
     private static void DrawCastBars(Profile profile)
     {
         Ui.PageHeader("Cast Bars", "Player, target and focus cast bars.");
         ModuleSwitch("Cast bars", ref Plugin.Profiles.Current.Modules.CastBars);
-        DrawCastBar("Player Cast Bar", profile.PlayerCast, true);
-        DrawCastBar("Target Cast Bar", profile.TargetCast, false);
-        DrawCastBar("Focus Cast Bar", profile.FocusCast, false);
+        var tab = Ui.Tabs("cast", "Player", "Target", "Focus");
+        var bars = new[] { ("Player Cast Bar", profile.PlayerCast), ("Target Cast Bar", profile.TargetCast), ("Focus Cast Bar", profile.FocusCast) };
+        var defaults = new Profile();
+        var defaultBars = new[] { defaults.PlayerCast, defaults.TargetCast, defaults.FocusCast };
+        for (var i = 0; i < bars.Length; i++)
+        {
+            if (!Ui.Tab(tab, i))
+            {
+                continue;
+            }
+
+            var (title, settings) = bars[i];
+            var index = i;
+            CopyAndReset("cast" + i, settings, () => defaultBars[index], ("Player cast bar", profile.PlayerCast), ("Target cast bar", profile.TargetCast), ("Focus cast bar", profile.FocusCast));
+            DrawCastBar(title, settings, i == 0);
+        }
     }
 
     private static void DrawCastBar(string title, CastBarSettings s, bool isPlayer)
@@ -515,6 +751,7 @@ public sealed partial class OptionsWindow : Window
             Ui.Color("Background colour", ref s.Background);
         }
 
+        Ui.MediaPicker("Bar texture", ref s.Texture, false, "Profile texture", "Empty uses the texture from the Style page.");
         Ui.Percent("Opacity", ref s.Opacity);
         Ui.Toggle("Show spell name", ref s.ShowName);
         Ui.TextLook("Spell name", s.NameStyle);
@@ -531,9 +768,22 @@ public sealed partial class OptionsWindow : Window
     {
         Ui.PageHeader("Auras", "Buffs and debuffs as icon grids with timers.");
         ModuleSwitch("Auras", ref Plugin.Profiles.Current.Modules.Auras);
-        DrawAura("Player Buffs", profile.PlayerBuffs, true);
-        DrawAura("Player Debuffs", profile.PlayerDebuffs, false);
-        DrawAura("Target Auras", profile.TargetAuras, false);
+        var tab = Ui.Tabs("auras", "Player Buffs", "Player Debuffs", "Target");
+        var groups = new[] { ("Player Buffs", profile.PlayerBuffs), ("Player Debuffs", profile.PlayerDebuffs), ("Target Auras", profile.TargetAuras) };
+        var defaults = new Profile();
+        var defaultGroups = new[] { defaults.PlayerBuffs, defaults.PlayerDebuffs, defaults.TargetAuras };
+        for (var i = 0; i < groups.Length; i++)
+        {
+            if (!Ui.Tab(tab, i))
+            {
+                continue;
+            }
+
+            var (title, settings) = groups[i];
+            var index = i;
+            CopyAndReset("aura" + i, settings, () => defaultGroups[index], ("Player buffs", profile.PlayerBuffs), ("Player debuffs", profile.PlayerDebuffs), ("Target auras", profile.TargetAuras));
+            DrawAura(title, settings, i == 0);
+        }
     }
 
     private static void DrawAura(string title, AuraSettings s, bool canRemove)

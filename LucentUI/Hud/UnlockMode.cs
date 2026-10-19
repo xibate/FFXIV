@@ -27,10 +27,14 @@ public sealed class UnlockMode
 
     public event Action? OpenSettingsRequested;
 
+    /// <summary>Asks for the settings of one element (double-click a mover, or Settings with one selected).</summary>
+    public event Action<string>? OpenElementSettingsRequested;
+
     public void Toggle() => SetActive(!Active);
 
     public void SetActive(bool active)
     {
+        Hud.Elements.NameplatesElement.UnlockActive = active;
         Active = active;
         if (!active)
         {
@@ -140,6 +144,11 @@ public sealed class UnlockMode
                 Plugin.MarkDirty();
             }
 
+            if (hovered && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            {
+                OpenElementSettingsRequested?.Invoke(element.Id);
+            }
+
             if (ImGui.IsItemClicked(ImGuiMouseButton.Right))
             {
                 element.ResetPosition(profile);
@@ -148,7 +157,7 @@ public sealed class UnlockMode
 
             if (hovered && !ImGui.IsItemActive())
             {
-                ImGui.SetTooltip($"{element.Label}\nDrag to move (hold Shift to ignore the grid)\nArrow keys nudge the selected element\nRight-click to reset");
+                ImGui.SetTooltip($"{element.Label}\nDrag to move (hold Shift to ignore the grid)\nDouble-click to open its settings\nArrow keys nudge the selected element\nRight-click to reset");
             }
 
             var selected = selectedId == element.Id;
@@ -240,9 +249,16 @@ public sealed class UnlockMode
 
             ImGui.Separator();
 
-            if (ImGui.Button("Settings"))
+            if (ImGui.Button(selected != null ? $"{selected.Label} Settings" : "Settings"))
             {
-                OpenSettingsRequested?.Invoke();
+                if (selected != null)
+                {
+                    OpenElementSettingsRequested?.Invoke(selected.Id);
+                }
+                else
+                {
+                    OpenSettingsRequested?.Invoke();
+                }
             }
 
             ImGui.SameLine();

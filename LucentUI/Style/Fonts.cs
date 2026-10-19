@@ -16,6 +16,8 @@ public sealed class Fonts : IDisposable
 
     private readonly Dictionary<int, (IFontHandle Handle, int LastUsed)> handles = new();
     private FontFamily family;
+    private string? customPath;
+    private int mediaVersion = -1;
     private bool created;
     private int mainSize = 16;
     private int smallSize = 13;
@@ -24,9 +26,15 @@ public sealed class Fonts : IDisposable
 
     public void Ensure(StyleSettings style)
     {
-        if (!created || style.Font != family)
+        // A font from the media library replaces the game font; rebuild when either changes.
+        var media = Plugin.Media;
+        var path = media?.FontPath(style.FontName);
+        var version = media?.Version ?? 0;
+        if (!created || style.Font != family || path != customPath || (path != null && version != mediaVersion))
         {
             family = style.Font;
+            customPath = path;
+            mediaVersion = version;
             Dispose();
             created = true;
         }
@@ -65,12 +73,44 @@ public sealed class Fonts : IDisposable
         size = size <= 0 ? mainSize : Math.Clamp(size, MinSize, MaxSize);
         if (!handles.TryGetValue(size, out var entry))
         {
-            entry = (Svc.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle((GameFontFamily)((int)family + 1), size)), 0);
+            entry = (customPath != null ? NewFileFont(customPath, size) : Svc.PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle((GameFontFamily)((int)family + 1), size)), 0);
         }
 
         handles[size] = (entry.Handle, ImGui.GetFrameCount());
         return entry.Handle.Push();
     }
+
+    /// <summary>A .ttf/.otf font at <paramref name="size"/> pixels, with the game's glyphs (icons, Japanese) merged in.</summary>
+    private static IFontHandle NewFileFont(string path, int size)
+    {
+        return Svc.PluginInterface.UiBuilder.FontAtlas.NewDelegateFontHandle(e => e.OnPreBuild(tk =>
+        {
+            var config = new SafeFontConfig { SizePx = size };
+            ImFontPtr font;
+            try
+            {
+                font = tk.AddFontFromFile(path, config);
+            }
+            catch (Exception ex)
+            {
+                Svc.Log.Warning($"Could not load font {path}: {ex.Message}");
+                tk.AddDalamudDefaultFont(size, null);
+                return;
+            }
+
+            try
+            {
+                tk.AddGameGlyphs(new GameFontStyle(GameFontFamily.Axis, size), GameGlyphRanges, font);
+            }
+            catch (Exception)
+            {
+                // The custom font still works without the extra glyphs.
+            }
+        }));
+    }
+
+    // Private-use (game icons), Japanese kana, CJK ideographs and full-width forms.
+    private static readonly ushort[] GameGlyphRanges = { 0x3000, 0x30FF, 0x4E00, 0x9FAF, 0xE000, 0xF8FF, 0xFF00, 0xFFEF, 0 };
 
     public void Dispose()
     {

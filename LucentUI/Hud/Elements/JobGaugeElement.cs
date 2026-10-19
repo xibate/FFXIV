@@ -47,6 +47,7 @@ public sealed class JobGaugeElement : HudElement
 
     public override void Draw(DrawContext ctx, Vector2 pos)
     {
+        using var barTexture = ctx.UseTexture(ctx.Profile.JobGauge.Texture);
         var player = Svc.ObjectTable.LocalPlayer;
         var parts = CurrentParts();
         if (player == null || parts == null)

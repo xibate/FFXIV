@@ -396,6 +396,18 @@ public static class EllesmereImport
                 result.Notes.Add("No FFXIV equivalent, skipped: " + string.Join(", ", skipped) + ".");
             }
 
+            if (texturesUsed.Count > 0 || fontsUsed.Count > 0)
+            {
+                var media = Plugin.Media;
+                var all = fontsUsed.Select(f => (Name: f, Found: media?.HasFont(f) == true))
+                    .Concat(texturesUsed.Select(t => (Name: t, Found: media?.HasTexture(t) == true))).ToList();
+                var missing = all.Where(m => !m.Found).Select(m => m.Name).ToList();
+                result.Notes.Add(missing.Count == 0
+                    ? "Fonts and textures found in your media folders: " + string.Join(", ", all.Select(m => m.Name)) + "."
+                    : "This profile uses these fonts and textures: " + string.Join(", ", all.Select(m => m.Name)) +
+                      ". Not found yet: " + string.Join(", ", missing) + ". Add your WoW Interface\\AddOns folder under Style > Media and they are picked up by name.");
+            }
+
             result.Notes.Add("WoW spells cannot be carried over: the Cooldown Manager fills its bars with your FFXIV job's own cooldowns (change them on the Cooldown Manager page).");
         }
 
@@ -408,10 +420,47 @@ public static class EllesmereImport
                 P.Style.Accent = color;
             }
 
-            if (Table(Get(profile, "fonts")) is { } fonts && Str(Get(fonts, "outlineMode")) is { } outline)
+            if (Table(Get(profile, "fonts")) is { } fonts)
             {
-                P.Style.TextOutline = outline != "none";
+                if (Str(Get(fonts, "outlineMode")) is { } outline)
+                {
+                    P.Style.TextOutline = outline != "none";
+                }
+
+                // The global font by its SharedMedia name, or else by the file name of its path.
+                var name = Str(Get(fonts, "global"));
+                if (string.IsNullOrEmpty(name) || name == "__global")
+                {
+                    name = Path.GetFileNameWithoutExtension((Str(Get(fonts, "unitNameFontPath")) ?? string.Empty).Replace('\\', '/'));
+                }
+
+                if (!string.IsNullOrEmpty(name))
+                {
+                    P.Style.FontName = name;
+                    fontsUsed.Add(name);
+                }
             }
+        }
+
+        private readonly SortedSet<string> texturesUsed = new(StringComparer.OrdinalIgnoreCase);
+        private readonly SortedSet<string> fontsUsed = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>An EllesmereUI texture key ("melli", "sm:SharedMediaName") → a media library name; empty for none.</summary>
+        private string TextureName(object? value)
+        {
+            var name = Str(value) ?? string.Empty;
+            if (name.StartsWith("sm:", StringComparison.OrdinalIgnoreCase))
+            {
+                name = name[3..];
+            }
+
+            if (name.Length == 0 || name is "none" or "inherit" or "blizzard" or "solid" or "default" or "__global")
+            {
+                return string.Empty;
+            }
+
+            texturesUsed.Add(name);
+            return name;
         }
 
         // ── Unit frames ──────────────────────────────────────────────────────
@@ -441,6 +490,11 @@ public static class EllesmereImport
 
             var enabled = Table(Get(uf, "enabledFrames"));
             var positions = Table(Get(uf, "positions"));
+            var globalTexture = TextureName(Get(uf, "healthBarTexture"));
+            if (globalTexture.Length > 0)
+            {
+                P.Style.BarTexture = globalTexture;
+            }
 
             foreach (var d in Frames)
             {
@@ -487,6 +541,8 @@ public static class EllesmereImport
                     s.Background = frameBackground with { W = P.Style.Background.W };
                 }
                 s.ReverseFill = Bool(Get(frame, "healthReverseFill")) ?? false;
+                var frameTexture = TextureName(Get(frame, "healthBarTexture"));
+                s.Texture = frameTexture.Equals(globalTexture, StringComparison.OrdinalIgnoreCase) ? string.Empty : frameTexture;
                 s.Enabled = Bool(Get(enabled, d.EuiKey)) ?? true;
 
                 var captured = s;
@@ -714,6 +770,7 @@ public static class EllesmereImport
                 s.Color = RgbFields(cast, "fill") ?? Colors(0.898f, 0.729f, 0.267f);
                 s.CustomBackground = true;
                 s.Background = RgbFields(cast, "bg", Num(Get(cast, "bgA")) ?? 0.7) ?? new Vector4(0, 0, 0, 0.7f);
+                s.Texture = TextureName(Get(cast, "texture"));
                 s.NameStyle.FontSize = (int)MathF.Round((float)(Num(Get(cast, "spellTextSize")) ?? 11) * scale);
                 s.TimerStyle.FontSize = (int)MathF.Round((float)(Num(Get(cast, "timerSize")) ?? 11) * scale);
                 s.NameStyle.Offset = new Vector2(MathF.Round((float)(Num(Get(cast, "spellTextX")) ?? 0) * scale), MathF.Round(-(float)(Num(Get(cast, "spellTextY")) ?? 0) * scale));
@@ -748,6 +805,7 @@ public static class EllesmereImport
                 converted.Add("class resource bar");
             }
 
+            P.JobGauge.Texture = TextureName(Get(general, "barTexture"));
             if (placed.ContainsKey("ERB_Power") || placed.ContainsKey("ERB_ClassResource"))
             {
                 P.JobGauge.Enabled = true;
@@ -1004,6 +1062,7 @@ public static class EllesmereImport
 
             // Bar width is EllesmereUI's 150 plus the "health bar width" setting.
             s.Size = Scaled(150 + (Num(Get(np, "healthBarWidth")) ?? 6), Num(Get(np, "healthBarHeight")) ?? 17);
+            s.Texture = TextureName(Get(np, "healthBarTexture"));
             s.Enemies = PlateMode.Bar;
             var friendlyPlayers = Bool(Get(np, "showFriendlyPlayers")) ?? true;
             s.Players = !friendlyPlayers ? PlateMode.Hidden : (Bool(Get(np, "friendlyNameOnly")) ?? true) ? PlateMode.NameOnly : PlateMode.Bar;
@@ -1087,6 +1146,7 @@ public static class EllesmereImport
             s.Horizontal = Bool(Get(raid, "partyHorizontal")) ?? false;
             s.ShowWhenSolo = Bool(Get(raid, "partyShowWhenSolo")) ?? Bool(Get(raid, "showWhenSolo")) ?? false;
             s.IncludePlayer = !(Bool(Get(raid, "partyHideSelf")) ?? false);
+            s.Texture = TextureName(PartyValue("healthBarTexture"));
 
             // Power bar: EllesmereUI shows it per role; LucentUI shows it for everyone or no one.
             var anyPower = new[] { "Healer", "Tank", "DPS" }.Any(role => Bool(PartyValue("powerShowFor" + role)) ?? role == "Healer");

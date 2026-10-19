@@ -71,6 +71,9 @@ public sealed class HudRenderer : IDisposable
 
     public UnlockMode Unlock { get; }
 
+    /// <summary>Set while the settings window is open with previews on: elements show sample data.</summary>
+    public bool SettingsPreview { get; set; }
+
     public void Draw()
     {
         var config = Plugin.Config;
@@ -117,7 +120,7 @@ public sealed class HudRenderer : IDisposable
                 ctx.Smoother = smoother;
                 ctx.Clips = clips;
                 ctx.DeltaTime = ImGui.GetIO().DeltaTime;
-                ctx.Preview = Unlock.Active;
+                ctx.Preview = Unlock.Active || SettingsPreview;
                 smoother.Enabled = profile.Style.SmoothBars;
                 smoother.NextFrame();
 
@@ -153,7 +156,7 @@ public sealed class HudRenderer : IDisposable
                 continue;
             }
 
-            var alpha = Unlock.Active ? 1f : CurrentAlpha(element, Visibility.TargetAlpha(element.GetVisibility(profile)), delta);
+            var alpha = ctx.Preview ? 1f : CurrentAlpha(element, Visibility.TargetAlpha(element.GetVisibility(profile)), delta);
             if (alpha <= 0.001f)
             {
                 continue;

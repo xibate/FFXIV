@@ -1,5 +1,7 @@
+using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Textures.TextureWraps;
 using LucentUI.Config;
 using LucentUI.Style;
 
@@ -31,6 +33,38 @@ public sealed class DrawContext
     public float Smooth(long key, float target) => key == 0 ? target : Smoother.Get(key, target, DeltaTime);
 
     public static long Key(string elementId, ulong objectId) => ((long)elementId.GetHashCode() << 32) ^ (long)objectId;
+
+    /// <summary>The bar texture the element being drawn asked for; null uses the profile's.</summary>
+    public string? TextureOverride;
+
+    /// <summary>The bar texture to fill bars with right now, or null for the profile's bar style.</summary>
+    public IDalamudTextureWrap? BarTexture()
+    {
+        var name = string.IsNullOrEmpty(TextureOverride) ? Style.BarTexture : TextureOverride;
+        return string.IsNullOrEmpty(name) ? null : Plugin.Media?.Texture(name);
+    }
+
+    /// <summary>Uses an element's own bar texture until disposed (empty keeps the profile's).</summary>
+    public TextureScope UseTexture(string? name)
+    {
+        var previous = TextureOverride;
+        TextureOverride = string.IsNullOrEmpty(name) ? previous : name;
+        return new TextureScope(this, previous);
+    }
+
+    public readonly struct TextureScope : IDisposable
+    {
+        private readonly DrawContext ctx;
+        private readonly string? previous;
+
+        public TextureScope(DrawContext ctx, string? previous)
+        {
+            this.ctx = ctx;
+            this.previous = previous;
+        }
+
+        public void Dispose() => ctx.TextureOverride = previous;
+    }
 }
 
 /// <summary>One movable piece of the HUD (a unit frame, a cast bar, an aura row...).</summary>

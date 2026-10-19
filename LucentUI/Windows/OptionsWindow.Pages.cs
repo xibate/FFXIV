@@ -65,21 +65,44 @@ public sealed partial class OptionsWindow
     {
         Ui.PageHeader("Job Gauge", "Your job's resources, procs and DoTs as bars. Every job has its own set.");
         ModuleSwitch("Job gauge", ref Plugin.Profiles.Current.Modules.JobGauges);
+        CopyAndReset("jobgauge", s, () => new Profile().JobGauge);
+        var tab = Ui.Tabs("jobgauge", "Layout", "Current Job", "All Jobs");
 
-        Ui.Card("Job Gauge");
-        Ui.Toggle("Enabled", ref s.Enabled);
-        Ui.Slider("Width", ref s.Width, 80f, 800f, "%.0f");
-        Ui.Slider("Bar height", ref s.BarHeight, 4f, 60f, "%.0f");
-        Ui.Slider("Spacing", ref s.Spacing, 0, 20);
-        Ui.Toggle("Show values", ref s.ShowText);
-        Ui.Toggle("Hide empty timers", ref s.HideEmptyTimers, "Buff and DoT bars disappear while they are not running.");
-        DrawVisibility("Job Gauge", s.Visibility);
+        if (Ui.Tab(tab, 0))
+        {
+            Ui.Card("Job Gauge");
+            Ui.Toggle("Enabled", ref s.Enabled);
+            Ui.Slider("Width", ref s.Width, 80f, 800f, "%.0f");
+            Ui.Slider("Bar height", ref s.BarHeight, 4f, 60f, "%.0f");
+            Ui.Slider("Spacing", ref s.Spacing, 0, 20);
+            Ui.MediaPicker("Bar texture", ref s.Texture, false, "Profile texture", "Empty uses the texture from the Style page.");
+            Ui.Toggle("Show values", ref s.ShowText);
+            Ui.Toggle("Hide empty timers", ref s.HideEmptyTimers, "Buff and DoT bars disappear while they are not running.");
+            DrawVisibility("Job Gauge", s.Visibility);
+        }
 
         // The current job first, then the rest in role order.
         var current = Svc.ObjectTable.LocalPlayer?.ClassJob.RowId ?? 0;
         var jobs = JobGaugeDefinitions.Jobs.OrderBy(j => j == current ? 0 : 1).ToList();
+        if (tab == 0)
+        {
+            return;
+        }
+
+        if (tab == 1 && !JobGaugeDefinitions.ByJob.ContainsKey(current))
+        {
+            Ui.Card("Current Job", "Log in on a combat job to see its bars here, or use All Jobs.");
+            Ui.EndCard();
+            return;
+        }
+
         foreach (var job in jobs)
         {
+            if (tab == 1 && job != current)
+            {
+                continue;
+            }
+
             var info = Jobs.Get(job);
             Ui.Card(job == current ? $"{info.Abbreviation} (current job)" : info.Abbreviation, "Turn bars on or off and pick your own colours.");
             foreach (var part in JobGaugeDefinitions.ByJob[job])
@@ -113,11 +136,38 @@ public sealed partial class OptionsWindow
     {
         Ui.PageHeader("Cooldown Manager", "Your own cooldowns as icon bars with a timer, like EllesmereUI's Cooldown Manager.");
         ModuleSwitch("Cooldown manager", ref Plugin.Profiles.Current.Modules.CooldownManager);
+        var tab = Ui.Tabs("cdm", "Cooldowns", "Utility", "Buffs", "Buff Filter", "Actions");
+        var defaults = new Profile().CooldownManager;
+        var bars = new[]
+        {
+            ("Cooldowns Bar", s.Cooldowns, defaults.Cooldowns, "Your job's abilities with a 30s or longer recast."),
+            ("Utility Bar", s.Utility, defaults.Utility, "Role actions such as Rampart, Feint, Addle or Swiftcast."),
+            ("Buffs Bar", s.Buffs, defaults.Buffs, "Buffs you put on yourself, with time left."),
+        };
 
-        DrawCooldownBar("Cooldowns Bar", s.Cooldowns, "Your job's abilities with a 30s or longer recast.");
-        DrawCooldownBar("Utility Bar", s.Utility, "Role actions such as Rampart, Feint, Addle or Swiftcast.");
-        DrawCooldownBar("Buffs Bar", s.Buffs, "Buffs you put on yourself, with time left.");
+        for (var i = 0; i < bars.Length; i++)
+        {
+            if (Ui.Tab(tab, i))
+            {
+                var (title, bar, fallback, description) = bars[i];
+                CopyAndReset("cdm" + i, bar, () => fallback, ("Cooldowns bar", s.Cooldowns), ("Utility bar", s.Utility), ("Buffs bar", s.Buffs));
+                DrawCooldownBar(title, bar, description);
+            }
+        }
 
+        if (Ui.Tab(tab, 3))
+        {
+            DrawBuffFilter(s);
+        }
+
+        if (Ui.Tab(tab, 4))
+        {
+            DrawJobActions(s);
+        }
+    }
+
+    private static void DrawBuffFilter(CooldownManagerSettings s)
+    {
         var me = Svc.ObjectTable.LocalPlayer;
         var currentJob = me?.ClassJob.RowId ?? 0;
         Ui.Card("Buffs Bar Filter", "By default the bar shows every buff you put on yourself. Track only chosen buffs per job, or hide some everywhere.");
@@ -141,10 +191,15 @@ public sealed partial class OptionsWindow
         }
 
         StatusListEditor("Hidden Buffs", s.HiddenBuffs, me, true, "Never shown on the Buffs bar, on any job.");
+    }
 
+    private static void DrawJobActions(CooldownManagerSettings s)
+    {
         var player = Svc.ObjectTable.LocalPlayer;
         if (player == null)
         {
+            Ui.Card("Actions", "Log in to choose which of your job's actions the bars show.");
+            Ui.EndCard();
             return;
         }
 
@@ -237,43 +292,61 @@ public sealed partial class OptionsWindow
     {
         Ui.PageHeader("Nameplates", "Health bars and names above units, like EllesmereUI's nameplates.");
         ModuleSwitch("Nameplates", ref Plugin.Profiles.Current.Modules.Nameplates, "Off by default because it draws over the game world.");
+        CopyAndReset("nameplates", s, () => new Profile().Nameplates);
+        var tab = Ui.Tabs("nameplates", "Units", "Bars", "Text", "Cast Bar", "Names");
 
-        Ui.Card("Nameplates");
-        Ui.Toggle("Enabled", ref s.Enabled);
-        Ui.Enum("Enemies", ref s.Enemies);
-        Ui.Toggle("Only enemies in combat", ref s.EnemiesOnlyInCombat);
-        Ui.Enum("Players", ref s.Players);
-        Ui.Enum("Friendly NPCs", ref s.FriendlyNpcs);
-        Ui.Toggle("Your own nameplate", ref s.ShowSelf);
-        Ui.Slider("Maximum distance", ref s.MaxDistance, 5f, 100f, "%.0f yalms");
-        Ui.Toggle("Follow the game's nameplates", ref s.FollowGameNameplates, "Only units the game would show a nameplate for (line of sight, the game's name settings). When the game shows none, every unit nearby is used.");
-        Ui.Enum("Game nameplates", ref s.GameNameplates, "HideReplaced removes the game's name from units that get a LucentUI plate. HideAll hides the game's nameplates completely, including NPC names and quest markers.");
-        Ui.Toggle("Click to target", ref s.Interactive, "Left-click targets, right-click opens the menu, and the plate works as a mouseover target.");
-        Ui.Slider("Vertical offset", ref s.YOffset, -100f, 100f, "%.0f");
+        if (Ui.Tab(tab, 0))
+        {
+            Ui.Card("Nameplates");
+            Ui.Toggle("Enabled", ref s.Enabled);
+            Ui.Enum("Enemies", ref s.Enemies);
+            Ui.Toggle("Only enemies in combat", ref s.EnemiesOnlyInCombat);
+            Ui.Enum("Players", ref s.Players);
+            Ui.Enum("Friendly NPCs", ref s.FriendlyNpcs);
+            Ui.Toggle("Your own nameplate", ref s.ShowSelf);
+            Ui.Slider("Maximum distance", ref s.MaxDistance, 5f, 100f, "%.0f yalms");
+            Ui.Toggle("Follow the game's nameplates", ref s.FollowGameNameplates, "Only units the game would show a nameplate for (line of sight, the game's name settings). When the game shows none, every unit nearby is used.");
+            Ui.Enum("Game nameplates", ref s.GameNameplates, "HideReplaced removes the game's name from units that get a LucentUI plate. HideAll hides the game's nameplates completely, including NPC names and quest markers.");
+            Ui.Toggle("Click to target", ref s.Interactive, "Left-click targets, right-click opens the menu, and the plate works as a mouseover target.");
+            Ui.Slider("Vertical offset", ref s.YOffset, -100f, 100f, "%.0f");
+        }
 
-        Ui.Card("Health Bar Plates");
-        Ui.Size("Size", ref s.Size);
-        Ui.Enum("Health colour", ref s.ColorMode);
-        Ui.Toggle("Shields", ref s.ShowShield);
-        Ui.Toggle("Highlight target", ref s.HighlightTarget);
-        Ui.Slider("Target size", ref s.TargetScale, 1f, 1.5f, "%.2fx");
-        Ui.Percent("Other plates' opacity", ref s.NonTargetAlpha, "Fades every plate except your target's while you have one.");
+        if (Ui.Tab(tab, 1))
+        {
+            Ui.Card("Health Bar Plates");
+            Ui.Size("Size", ref s.Size);
+            Ui.MediaPicker("Bar texture", ref s.Texture, false, "Profile texture", "Empty uses the texture from the Style page.");
+            Ui.Enum("Health colour", ref s.ColorMode);
+            Ui.Toggle("Shields", ref s.ShowShield);
+            Ui.Toggle("Highlight target", ref s.HighlightTarget);
+            Ui.Slider("Target size", ref s.TargetScale, 1f, 1.5f, "%.2fx");
+            Ui.Percent("Other plates' opacity", ref s.NonTargetAlpha, "Fades every plate except your target's while you have one.");
+        }
 
-        DrawTextSlot("Plate Left Text", ref s.LeftText, s.LeftStyle);
-        DrawTextSlot("Plate Center Text", ref s.CenterText, s.CenterStyle);
-        DrawTextSlot("Plate Right Text", ref s.RightText, s.RightStyle);
+        if (Ui.Tab(tab, 2))
+        {
+            DrawTextSlot("Plate Left Text", ref s.LeftText, s.LeftStyle);
+            DrawTextSlot("Plate Center Text", ref s.CenterText, s.CenterStyle);
+            DrawTextSlot("Plate Right Text", ref s.RightText, s.RightStyle);
+        }
 
-        Ui.Card("Plate Cast Bar");
-        Ui.Toggle("Cast bar", ref s.ShowCast);
-        Ui.Slider("Height", ref s.CastHeight, 4f, 30f, "%.0f");
-        Ui.Toggle("Spell name", ref s.ShowCastName);
-        Ui.Toggle("Spell icon", ref s.ShowCastIcon);
-        Ui.TextLook("Spell name", s.CastNameStyle);
+        if (Ui.Tab(tab, 3))
+        {
+            Ui.Card("Plate Cast Bar");
+            Ui.Toggle("Cast bar", ref s.ShowCast);
+            Ui.Slider("Height", ref s.CastHeight, 4f, 30f, "%.0f");
+            Ui.Toggle("Spell name", ref s.ShowCastName);
+            Ui.Toggle("Spell icon", ref s.ShowCastIcon);
+            Ui.TextLook("Spell name", s.CastNameStyle);
+        }
 
-        Ui.Card("Name-Only Plates");
-        Ui.TextContent("Shows", ref s.NameOnlyText);
-        Ui.Slider("Font size", ref s.NameOnlyFontSize, 0, 40, "0 uses the HUD font size.");
-        Ui.Toggle("Job colour for players", ref s.NameOnlyJobColor);
+        if (Ui.Tab(tab, 4))
+        {
+            Ui.Card("Name-Only Plates");
+            Ui.TextContent("Shows", ref s.NameOnlyText);
+            Ui.Slider("Font size", ref s.NameOnlyFontSize, 0, 40, "0 uses the HUD font size.");
+            Ui.Toggle("Job colour for players", ref s.NameOnlyJobColor);
+        }
     }
 
     private static void DrawEnemyList(EnemyListSettings s)

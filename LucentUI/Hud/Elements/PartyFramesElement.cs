@@ -83,6 +83,7 @@ public sealed class PartyFramesElement : HudElement
 
             UnitBar.Render(ctx, memberPos, s.Size, unit, new UnitBarOptions
             {
+                Texture = s.Texture,
                 ShowPower = s.ShowPower,
                 PowerHeight = s.PowerHeight,
                 LeftText = s.LeftText,

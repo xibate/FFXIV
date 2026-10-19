@@ -3,7 +3,7 @@
     "Author": "xibate",
     "Name": "LucentUI",
     "InternalName": "LucentUI",
-    "AssemblyVersion": "0.5.0.0",
+    "AssemblyVersion": "0.6.0.0",
     "Punchline": "A clean, modern and modular HUD replacement.",
     "Description": "LucentUI replaces the default HUD with clean unit frames, party frames, job gauges for every job, cast bars, auras, party cooldowns, an enemy list, nameplates and more. Everything can be moved in Unlock Mode, styled from one place, and saved into profiles that switch automatically per job. EllesmereUI profiles from WoW can be imported. Inspired by EllesmereUI for World of Warcraft.",
     "ApplicableVersion": "any",
