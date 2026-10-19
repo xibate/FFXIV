@@ -63,23 +63,38 @@ public sealed class CastBarElement : HudElement
         }
 
         var style = ctx.Style;
-        var (min, max) = Gfx.Panel(ctx, pos, s.Size);
+        var savedAlpha = ctx.Alpha;
+        ctx.Alpha *= Math.Clamp(s.Opacity, 0f, 1f);
+
+        var (min, max) = Gfx.Panel(ctx, pos, s.Size, s.CustomBackground ? s.Background : null);
         var b = Math.Max(0, style.BorderSize);
 
-        // Icon on the left, as a square the height of the bar.
+        // Spell icon as a square the height of the bar, on the chosen side.
         if (s.ShowIcon && cast.Icon != 0)
         {
             var iconSize = max.Y - min.Y;
+            var iconMin = s.IconOnRight ? new Vector2(max.X - iconSize, min.Y) : min;
             var texture = Svc.TextureProvider.GetFromGameIcon(new GameIconLookup(cast.Icon)).GetWrapOrEmpty();
-            ctx.DrawList.AddImage(texture.Handle, min, min + new Vector2(iconSize), new Vector2(0.08f), new Vector2(0.92f), ctx.Col(Vector4.One));
-            min.X += iconSize + b;
-            if (b > 0)
+            ctx.DrawList.AddImage(texture.Handle, iconMin, iconMin + new Vector2(iconSize), new Vector2(0.08f), new Vector2(0.92f), ctx.Col(Vector4.One));
+            if (s.IconOnRight)
             {
-                ctx.DrawList.AddRectFilled(new Vector2(min.X - b, min.Y), new Vector2(min.X, max.Y), ctx.Col(style.Border));
+                max.X -= iconSize + b;
+                if (b > 0)
+                {
+                    ctx.DrawList.AddRectFilled(new Vector2(max.X, min.Y), new Vector2(max.X + b, max.Y), ctx.Col(style.Border));
+                }
+            }
+            else
+            {
+                min.X += iconSize + b;
+                if (b > 0)
+                {
+                    ctx.DrawList.AddRectFilled(new Vector2(min.X - b, min.Y), new Vector2(min.X, max.Y), ctx.Col(style.Border));
+                }
             }
         }
 
-        var color = cast.Interruptible ? style.CastInterruptible : style.Cast;
+        var color = cast.Interruptible ? style.CastInterruptible : s.CustomColor ? s.Color : style.Cast;
         Gfx.Bar(ctx, min, max, cast.Fraction, color);
 
         if (kind == UnitKind.Player && s.ShowSlidecast && s.SlidecastWindow > 0f && cast.Total > s.SlidecastWindow)
@@ -91,6 +106,7 @@ public sealed class CastBarElement : HudElement
 
         var name = s.ShowName ? cast.Name : string.Empty;
         var timer = s.ShowTimer ? Math.Max(0f, cast.Remaining).ToString("0.0", CultureInfo.InvariantCulture) : string.Empty;
-        Gfx.TextRow(ctx, min, max, name, string.Empty, timer, 4f);
+        Gfx.TextRow(ctx, min, max, (name, s.NameStyle), (string.Empty, null), (timer, s.TimerStyle), color, 4f);
+        ctx.Alpha = savedAlpha;
     }
 }

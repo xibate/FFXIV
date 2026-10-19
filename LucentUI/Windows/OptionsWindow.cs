@@ -329,6 +329,7 @@ public sealed partial class OptionsWindow : Window
         Ui.Toggle("Click to target", ref general.ClickToTarget);
         Ui.Toggle("Right-click menu", ref general.RightClickMenu, "Right-click a frame to open the game's context menu.");
         Ui.Toggle("Mouseover target", ref general.MouseoverTarget, "Hovering a frame sets <mo> for mouseover macros.");
+        Ui.Toggle("Mouseover casting", ref general.MouseoverCasting, "While hovering a frame, your actions go to that unit (heals to the party member, attacks to the enemy). No macros needed.");
     }
 
     private static void DrawWelcome(Profile profile)
@@ -397,6 +398,7 @@ public sealed partial class OptionsWindow : Window
     private static void DrawUnitFrame(string title, string subtitle, UnitFrameSettings s, bool isPlayer)
     {
         Ui.PageHeader(title, subtitle);
+        ModuleSwitch("Unit frames", ref Plugin.Profiles.Current.Modules.UnitFrames);
 
         Ui.Card(title + " Frame");
         Ui.Toggle("Enabled", ref s.Enabled);
@@ -404,19 +406,26 @@ public sealed partial class OptionsWindow : Window
         Ui.Enum("Health colour", ref s.ColorMode);
         Ui.Toggle("Show shield", ref s.ShowShield);
         Ui.Toggle("Fill right to left", ref s.ReverseFill);
-        if (!isPlayer)
+        Ui.Enum("Job icon", ref s.JobIcon, "A job icon portrait beside the bars.");
+        Ui.Toggle("Own background colour", ref s.CustomBackground);
+        if (s.CustomBackground)
         {
-            Ui.Toggle("Clickable", ref s.Interactive, "Click to target, right-click menu and mouseover.");
+            Ui.Color("Background colour", ref s.Background);
         }
 
-        Ui.Card(title + " Power", "Mana, GP or CP, shown under the health bar.");
+        if (!isPlayer)
+        {
+            Ui.Toggle("Clickable", ref s.Interactive, "Click to target, right-click menu, mouseover and mouseover casting.");
+        }
+
+        Ui.Card(title + " Power", "Mana, GP or CP.");
         Ui.Toggle("Show power bar", ref s.ShowPower);
+        Ui.Enum("Power bar position", ref s.PowerPosition);
         Ui.Slider("Power bar height", ref s.PowerHeight, 1, 30);
 
-        Ui.Card(title + " Text", TextTags.Help);
-        Ui.Text("Left text", ref s.LeftText);
-        Ui.Text("Centre text", ref s.CenterText);
-        Ui.Text("Right text", ref s.RightText);
+        DrawTextSlot(title + " Left Text", ref s.LeftText, s.LeftStyle);
+        DrawTextSlot(title + " Centre Text", ref s.CenterText, s.CenterStyle);
+        DrawTextSlot(title + " Right Text", ref s.RightText, s.RightStyle);
 
         DrawVisibility(title, s.Visibility);
     }
@@ -425,12 +434,21 @@ public sealed partial class OptionsWindow : Window
     {
         Ui.Card(title + " Visibility");
         Ui.Enum("Show", ref v.Mode);
+        Ui.Percent("Opacity", ref v.Opacity, "How see-through the element is while shown.");
         Ui.Percent("Opacity when hidden", ref v.HiddenAlpha, "0% hides it completely; higher values fade it instead.");
+    }
+
+    private static void DrawTextSlot(string title, ref string template, TextStyle style)
+    {
+        Ui.Card(title);
+        Ui.TextContent("Shows", ref template);
+        Ui.TextLook("Text", style);
     }
 
     private static void DrawParty(PartySettings s)
     {
         Ui.PageHeader("Party", "Party frames with role sorting and range fading.");
+        ModuleSwitch("Party frames", ref Plugin.Profiles.Current.Modules.PartyFrames);
 
         Ui.Card("Party Frames");
         Ui.Toggle("Enabled", ref s.Enabled);
@@ -462,9 +480,8 @@ public sealed partial class OptionsWindow : Window
         Ui.Slider("Debuffs per member", ref s.MaxDebuffs, 1, 8);
         Ui.Slider("Debuff icon height", ref s.DebuffIconHeight, 10f, 64f, "%.0f");
 
-        Ui.Card("Party Text", TextTags.Help);
-        Ui.Text("Left text", ref s.LeftText);
-        Ui.Text("Right text", ref s.RightText);
+        DrawTextSlot("Party Left Text", ref s.LeftText, s.LeftStyle);
+        DrawTextSlot("Party Right Text", ref s.RightText, s.RightStyle);
 
         DrawVisibility("Party", s.Visibility);
     }
@@ -472,6 +489,7 @@ public sealed partial class OptionsWindow : Window
     private static void DrawCastBars(Profile profile)
     {
         Ui.PageHeader("Cast Bars", "Player, target and focus cast bars.");
+        ModuleSwitch("Cast bars", ref Plugin.Profiles.Current.Modules.CastBars);
         DrawCastBar("Player Cast Bar", profile.PlayerCast, true);
         DrawCastBar("Target Cast Bar", profile.TargetCast, false);
         DrawCastBar("Focus Cast Bar", profile.FocusCast, false);
@@ -483,8 +501,24 @@ public sealed partial class OptionsWindow : Window
         Ui.Toggle("Enabled", ref s.Enabled);
         Ui.Size("Size", ref s.Size);
         Ui.Toggle("Show icon", ref s.ShowIcon);
+        Ui.Toggle("Icon on the right", ref s.IconOnRight);
+        Ui.Toggle("Own colour", ref s.CustomColor, "Interruptible casts keep the interruptible colour.");
+        if (s.CustomColor)
+        {
+            Ui.Color("Colour", ref s.Color);
+        }
+
+        Ui.Toggle("Own background colour", ref s.CustomBackground);
+        if (s.CustomBackground)
+        {
+            Ui.Color("Background colour", ref s.Background);
+        }
+
+        Ui.Percent("Opacity", ref s.Opacity);
         Ui.Toggle("Show spell name", ref s.ShowName);
+        Ui.TextLook("Spell name", s.NameStyle);
         Ui.Toggle("Show timer", ref s.ShowTimer);
+        Ui.TextLook("Timer", s.TimerStyle);
         if (isPlayer)
         {
             Ui.Toggle("Show slidecast window", ref s.ShowSlidecast, "Marks the end of the cast where you can already move.");
@@ -495,6 +529,7 @@ public sealed partial class OptionsWindow : Window
     private static void DrawAuras(Profile profile)
     {
         Ui.PageHeader("Auras", "Buffs and debuffs as icon grids with timers.");
+        ModuleSwitch("Auras", ref Plugin.Profiles.Current.Modules.Auras);
         DrawAura("Player Buffs", profile.PlayerBuffs, true);
         DrawAura("Player Debuffs", profile.PlayerDebuffs, false);
         DrawAura("Target Auras", profile.TargetAuras, false);
@@ -520,6 +555,18 @@ public sealed partial class OptionsWindow : Window
         if (canRemove)
         {
             Ui.Toggle("Right-click to remove", ref s.RightClickToRemove, "Right-click a buff to click it off, like the default status bar.");
+        }
+
+        Ui.Enum("Border", ref s.Border, "By Type colours debuffs red and cleansable ones purple.");
+        Ui.Enum("Timer position", ref s.TimerPosition);
+        Ui.Slider("Timer font size", ref s.TimerFontSize, 0, 40, "0 uses the small font size from the Style page.");
+        Ui.Enum("Filter", ref s.Filter, "Hide the statuses in a list, or show only those.");
+
+        if (s.Filter != ListFilter.None)
+        {
+            var source = title.StartsWith("Target") ? Svc.TargetManager.Target : Svc.ObjectTable.LocalPlayer;
+            StatusListEditor($"{title} Filter List", s.FilterIds, source, false,
+                s.Filter == ListFilter.HideListed ? "These statuses are hidden." : "Only these statuses are shown.");
         }
     }
 

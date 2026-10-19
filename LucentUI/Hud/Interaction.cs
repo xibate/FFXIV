@@ -18,6 +18,9 @@ public sealed unsafe class Interaction
     private nint currentMouseover;
     private bool blocked;
 
+    /// <summary>The unit under the mouse on the last drawn frame (used for mouseover casting).</summary>
+    public IGameObject? Hovered { get; private set; }
+
     /// <summary>True while an element is redrawn for clipping; only the first pass handles input.</summary>
     public bool Suppressed;
 
@@ -62,11 +65,16 @@ public sealed unsafe class Interaction
     /// <summary>Call after all elements drew: updates the game's mouseover target.</summary>
     public void EndFrame(GeneralSettings general)
     {
+        Hovered = hovered;
         var address = general.MouseoverTarget && hovered != null ? hovered.Address : nint.Zero;
         SetMouseover(address);
     }
 
-    public void Clear() => SetMouseover(nint.Zero);
+    public void Clear()
+    {
+        Hovered = null;
+        SetMouseover(nint.Zero);
+    }
 
     private void SetMouseover(nint address)
     {

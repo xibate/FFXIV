@@ -16,6 +16,8 @@ public sealed class HudRenderer : IDisposable
 
     private readonly Fonts fonts = new();
     private readonly Interaction input = new();
+
+    public Interaction Input => input;
     private readonly Smoother smoother = new();
     private readonly ClipRects clips = new();
     private readonly DrawContext ctx = new();
@@ -51,6 +53,17 @@ public sealed class HudRenderer : IDisposable
             new ExperienceElement(),
         };
 
+        // One element per job gauge bar, used when the user detaches that bar from the stack.
+        var all = new List<HudElement>(Elements);
+        foreach (var (job, parts) in Gauges.JobGaugeDefinitions.ByJob)
+        {
+            for (var i = 0; i < parts.Length; i++)
+            {
+                all.Add(new JobGaugePartElement(job, parts[i], i));
+            }
+        }
+
+        Elements = all;
         Unlock = new UnlockMode(Elements);
     }
 

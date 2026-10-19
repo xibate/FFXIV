@@ -24,7 +24,7 @@ public static class Gfx
     };
 
     /// <summary>Draws a bordered panel (with optional drop shadow) and returns the inner (content) rectangle.</summary>
-    public static (Vector2 Min, Vector2 Max) Panel(DrawContext ctx, Vector2 pos, Vector2 size)
+    public static (Vector2 Min, Vector2 Max) Panel(DrawContext ctx, Vector2 pos, Vector2 size, Vector4? background = null)
     {
         var s = ctx.Style;
         var b = Math.Max(0, s.BorderSize);
@@ -45,7 +45,7 @@ public static class Gfx
 
         var innerMin = pos + new Vector2(b);
         var innerMax = pos + size - new Vector2(b);
-        dl.AddRectFilled(innerMin, innerMax, ctx.Col(s.Background), Math.Max(0, s.Rounding - b));
+        dl.AddRectFilled(innerMin, innerMax, ctx.Col(background ?? s.Background), Math.Max(0, s.Rounding - b));
         return (innerMin, innerMax);
     }
 
@@ -198,6 +198,44 @@ public static class Gfx
         }
 
         dl.AddText(pos, ctx.Col(color), text);
+    }
+
+    /// <summary>Draws text with its own size, offset and colour.</summary>
+    public static void StyledText(DrawContext ctx, string text, Vector2 anchor, TextAlign align, TextStyle? style, Vector4 jobColor)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        if (style == null)
+        {
+            Text(ctx, text, anchor, align, Vector4.One);
+            return;
+        }
+
+        var color = style.Color switch
+        {
+            TextColorMode.Job => jobColor,
+            TextColorMode.Custom => style.CustomColor,
+            _ => Vector4.One,
+        };
+
+        using var font = ctx.Fonts.Push(style.FontSize);
+        Text(ctx, text, anchor + style.Offset, align, color);
+    }
+
+    /// <summary>Left/centre/right text in a bar, each with its own style. Long text is clipped to the bar's width.</summary>
+    public static void TextRow(DrawContext ctx, Vector2 min, Vector2 max, (string Text, TextStyle? Style) left, (string Text, TextStyle? Style) center, (string Text, TextStyle? Style) right, Vector4 jobColor, float padding = 5f)
+    {
+        var midY = (min.Y + max.Y) / 2f;
+
+        // Clip sideways only, so text can be moved above or below the bar with an offset.
+        ctx.DrawList.PushClipRect(new Vector2(min.X, min.Y - 200f), new Vector2(max.X, max.Y + 200f), true);
+        StyledText(ctx, left.Text, new Vector2(min.X + padding, midY), TextAlign.Left, left.Style, jobColor);
+        StyledText(ctx, center.Text, new Vector2((min.X + max.X) / 2f, midY), TextAlign.Center, center.Style, jobColor);
+        StyledText(ctx, right.Text, new Vector2(max.X - padding, midY), TextAlign.Right, right.Style, jobColor);
+        ctx.DrawList.PopClipRect();
     }
 
     /// <summary>Draws left/centre/right text inside a rectangle, clipped to it.</summary>

@@ -33,7 +33,8 @@ public sealed class JobGaugeElement : HudElement
             var level = Svc.ObjectTable.LocalPlayer?.Level ?? 100;
             foreach (var part in parts)
             {
-                if (PartSettings(profile, part)?.Enabled != false && level >= part.MinLevel)
+                var settings = PartSettings(profile, part);
+                if ((settings?.Enabled ?? part.DefaultEnabled) && settings?.Detached != true && level >= part.MinLevel)
                 {
                     count++;
                 }
@@ -62,7 +63,7 @@ public sealed class JobGaugeElement : HudElement
         foreach (var part in parts)
         {
             var settings = PartSettings(ctx.Profile, part);
-            if (settings?.Enabled == false || player.Level < part.MinLevel)
+            if (!(settings?.Enabled ?? part.DefaultEnabled) || settings?.Detached == true || player.Level < part.MinLevel)
             {
                 continue;
             }
@@ -104,7 +105,7 @@ public sealed class JobGaugeElement : HudElement
         }
     }
 
-    private static void DrawPart(DrawContext ctx, JobGaugeSettings s, GaugePart part, GaugeValue value, Vector4 color, Vector2 pos, Vector2 size)
+    internal static void DrawPart(DrawContext ctx, JobGaugeSettings s, GaugePart part, GaugeValue value, Vector4 color, Vector2 pos, Vector2 size)
     {
         switch (part.Kind)
         {

@@ -63,6 +63,7 @@ public static class JobGaugeDefinitions
             new("lilyTimer", "Next Lily", GaugeKind.Timer, White, c => TimerMs(c.Gauge<WHMGauge>().LilyTimer, 20), 52),
             new("bloodLily", "Blood Lily", GaugeKind.Stacks, Red, c => Stacks(c.Gauge<WHMGauge>().BloodLily, 3), 74),
             new("dia", "Dia", GaugeKind.Timer, LightBlue, c => c.Dot(30, 143, 144, 1871), 4),
+            new("mana", "MP", GaugeKind.Resource, Blue, c => c.Mana(), 1, false),
         },
         [28] = new GaugePart[] // SCH
         {
@@ -70,12 +71,14 @@ public static class JobGaugeDefinitions
             new("fairy", "Fairy Gauge", GaugeKind.Resource, Green, c => Resource(c.Gauge<SCHGauge>().FairyGauge, 100), 52),
             new("seraph", "Seraph", GaugeKind.Timer, Gold, c => TimerMs(c.Gauge<SCHGauge>().SeraphTimer, 22), 80),
             new("bio", "Biolysis", GaugeKind.Timer, Green, c => c.Dot(30, 179, 189, 1895), 2),
+            new("mana", "MP", GaugeKind.Resource, Blue, c => c.Mana(), 1, false),
         },
         [33] = new GaugePart[] // AST
         {
             new("cards", "Cards", GaugeKind.Pips, Gold, c => AstCards(c.Gauge<ASTGauge>()), 30),
             new("combust", "Combust", GaugeKind.Timer, Gold, c => c.Dot(30, 838, 843, 1881), 4),
             new("lightspeed", "Lightspeed", GaugeKind.Timer, LightBlue, c => c.Buff(15, 841), 6),
+            new("mana", "MP", GaugeKind.Resource, Blue, c => c.Mana(), 1, false),
         },
         [40] = new GaugePart[] // SGE
         {
@@ -84,6 +87,7 @@ public static class JobGaugeDefinitions
             new("addersting", "Addersting", GaugeKind.Stacks, Red, c => Stacks(c.Gauge<SGEGauge>().Addersting, 3), 66),
             new("eukrasia", "Eukrasia", GaugeKind.Stacks, LightBlue, c => Stacks(c.Gauge<SGEGauge>().Eukrasia ? 1 : 0, 1), 30),
             new("dosis", "Eukrasian Dosis", GaugeKind.Timer, LightBlue, c => c.Dot(30, 2614, 2615, 2616, 3897), 30),
+            new("mana", "MP", GaugeKind.Resource, Blue, c => c.Mana(), 1, false),
         },
 
         // ── Melee ────────────────────────────────────────────────────────────
@@ -184,6 +188,7 @@ public static class JobGaugeDefinitions
             new("attunement", "Attunement", GaugeKind.Stacks, Gold, c => SmnAttunement(c.Gauge<SMNGauge>()), 6),
             new("summon", "Demi-Summon", GaugeKind.Timer, Orange, c => TimerMs(c.Gauge<SMNGauge>().SummonTimerRemaining, 15), 58),
             new("primals", "Primals Ready", GaugeKind.Pips, White, c => SmnPrimals(c.Gauge<SMNGauge>()), 6),
+            new("mana", "MP", GaugeKind.Resource, Blue, c => c.Mana(), 1, false),
         },
         [35] = new GaugePart[] // RDM
         {
@@ -193,6 +198,7 @@ public static class JobGaugeDefinitions
             new("dualcast", "Dualcast", GaugeKind.Timer, Pink, c => c.Buff(15, 1249), 1),
             new("verfire", "Verfire Ready", GaugeKind.Timer, Red, c => c.Buff(30, 1234), 26),
             new("verstone", "Verstone Ready", GaugeKind.Timer, White, c => c.Buff(30, 1235), 30),
+            new("mana", "MP", GaugeKind.Resource, Blue, c => c.Mana(), 1, false),
         },
         [42] = new GaugePart[] // PCT
         {
@@ -201,6 +207,7 @@ public static class JobGaugeDefinitions
             new("motifs", "Motifs", GaugeKind.Pips, Teal, c => PctMotifs(c.Gauge<PCTGauge>()), 30),
             new("hammer", "Hammer Time", GaugeKind.Stacks, Gold, c => c.BuffStacks(3, 3680), 86),
             new("hyperphantasia", "Hyperphantasia", GaugeKind.Stacks, LightBlue, c => c.BuffStacks(5, 3688), 70),
+            new("mana", "MP", GaugeKind.Resource, Blue, c => c.Mana(), 1, false),
         },
     };
 

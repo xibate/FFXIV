@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Linq;
+using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Bindings.ImGui;
 using LucentUI.Config;
 using LucentUI.Data;
@@ -11,9 +13,58 @@ namespace LucentUI.Windows;
 /// <summary>Settings pages for the job gauge, party cooldowns, nameplates, enemy list, extras and hotbars.</summary>
 public sealed partial class OptionsWindow
 {
+    private static readonly Dictionary<string, string> StatusSearches = new();
+
+    /// <summary>
+    /// Edits a list of status ids: remove listed ones, add statuses that are on <paramref name="activeFrom"/> right
+    /// now, or find one by name or id.
+    /// </summary>
+    private static void StatusListEditor(string title, List<uint> ids, IGameObject? activeFrom, bool onlyMine, string description)
+    {
+        Ui.Card(title, description);
+
+        foreach (var id in ids.ToList())
+        {
+            if (Ui.Button($"{Auras.NameOf(id)} (#{id})", "Remove"))
+            {
+                ids.Remove(id);
+                Plugin.MarkDirty();
+            }
+        }
+
+        foreach (var (id, name) in Auras.ActiveOn(activeFrom, onlyMine))
+        {
+            if (!ids.Contains(id) && Ui.Button($"{name} (active now, #{id})", "Add"))
+            {
+                ids.Add(id);
+                Plugin.MarkDirty();
+            }
+        }
+
+        var search = StatusSearches.TryGetValue(title, out var saved) ? saved : string.Empty;
+        Ui.Text("Find a status", ref search, "Type at least 3 letters of its name, or its id.", "Name or id");
+        StatusSearches[title] = search;
+        foreach (var (id, name) in Auras.Search(search))
+        {
+            if (!ids.Contains(id) && Ui.Button($"{name} (#{id})", "Add"))
+            {
+                ids.Add(id);
+                Plugin.MarkDirty();
+            }
+        }
+    }
+
+    /// <summary>The module's master switch, shown at the top of its page.</summary>
+    private static void ModuleSwitch(string name, ref bool enabled, string? note = null)
+    {
+        Ui.Card("Module", note);
+        Ui.Toggle($"{name} on", ref enabled, enabled ? null : "This module is off, so nothing on this page shows in game.");
+    }
+
     private static void DrawJobGauge(JobGaugeSettings s)
     {
         Ui.PageHeader("Job Gauge", "Your job's resources, procs and DoTs as bars. Every job has its own set.");
+        ModuleSwitch("Job gauge", ref Plugin.Profiles.Current.Modules.JobGauges);
 
         Ui.Card("Job Gauge");
         Ui.Toggle("Enabled", ref s.Enabled);
@@ -35,13 +86,19 @@ public sealed partial class OptionsWindow
             {
                 var key = JobGaugeElement.PartKey(job, part);
                 var exists = s.Parts.TryGetValue(key, out var settings);
-                settings ??= new GaugePartSettings { Color = part.DefaultColor };
+                settings ??= new GaugePartSettings { Enabled = part.DefaultEnabled, Color = part.DefaultColor };
 
                 var changed = Ui.Toggle(part.Label, ref settings.Enabled, part.MinLevel > 1 ? $"From level {part.MinLevel}." : null);
                 changed |= Ui.Toggle($"{part.Label}: own colour", ref settings.CustomColor);
                 if (settings.CustomColor)
                 {
                     changed |= Ui.Color($"{part.Label}: colour", ref settings.Color);
+                }
+
+                changed |= Ui.Toggle($"{part.Label}: detach", ref settings.Detached, "Show this bar on its own, so you can move and size it separately in Unlock Mode.");
+                if (settings.Detached)
+                {
+                    changed |= Ui.Size($"{part.Label}: size", ref settings.Size, "0 uses the job gauge's width and bar height.");
                 }
 
                 if (changed && !exists)
@@ -55,10 +112,35 @@ public sealed partial class OptionsWindow
     private static void DrawCooldownManager(CooldownManagerSettings s)
     {
         Ui.PageHeader("Cooldown Manager", "Your own cooldowns as icon bars with a timer, like EllesmereUI's Cooldown Manager.");
+        ModuleSwitch("Cooldown manager", ref Plugin.Profiles.Current.Modules.CooldownManager);
 
         DrawCooldownBar("Cooldowns Bar", s.Cooldowns, "Your job's abilities with a 30s or longer recast.");
         DrawCooldownBar("Utility Bar", s.Utility, "Role actions such as Rampart, Feint, Addle or Swiftcast.");
         DrawCooldownBar("Buffs Bar", s.Buffs, "Buffs you put on yourself, with time left.");
+
+        var me = Svc.ObjectTable.LocalPlayer;
+        var currentJob = me?.ClassJob.RowId ?? 0;
+        Ui.Card("Buffs Bar Filter", "By default the bar shows every buff you put on yourself. Track only chosen buffs per job, or hide some everywhere.");
+        Ui.Toggle("Only tracked buffs", ref s.OnlyTrackedBuffs, "Show only the buffs listed for your current job below.");
+        if (me != null)
+        {
+            if (!s.TrackedBuffs.TryGetValue(currentJob, out var tracked))
+            {
+                tracked = new List<uint>();
+            }
+
+            StatusListEditor($"Tracked Buffs ({Jobs.Get(currentJob).Abbreviation})", tracked, me, true, "Used when \"Only tracked buffs\" is on. Each job has its own list.");
+            if (tracked.Count > 0)
+            {
+                s.TrackedBuffs[currentJob] = tracked;
+            }
+            else
+            {
+                s.TrackedBuffs.Remove(currentJob);
+            }
+        }
+
+        StatusListEditor("Hidden Buffs", s.HiddenBuffs, me, true, "Never shown on the Buffs bar, on any job.");
 
         var player = Svc.ObjectTable.LocalPlayer;
         if (player == null)
@@ -121,12 +203,16 @@ public sealed partial class OptionsWindow
         Ui.Toggle("Timer text", ref s.ShowCooldownText);
         Ui.Toggle("Charges", ref s.ShowCharges);
         Ui.Toggle("Dim while on cooldown", ref s.DimOnCooldown);
+        Ui.Toggle("Icon background", ref s.ShowBackground);
+        Ui.Slider("Icon zoom", ref s.IconZoom, 0f, 0.3f, "%.2f", "Crops the icon's edges.");
+        Ui.Slider("Timer font size", ref s.TimerFontSize, 0, 40, "0 uses the small font size from the Style page.");
         DrawVisibility(title, s.Visibility);
     }
 
     private static void DrawPartyCooldowns(PartyCooldownSettings s)
     {
         Ui.PageHeader("Party Cooldowns", "Raid buffs and mitigation from everyone in your party: active, on cooldown or ready.");
+        ModuleSwitch("Party cooldowns", ref Plugin.Profiles.Current.Modules.PartyCooldowns);
 
         Ui.Card("Party Cooldowns");
         Ui.Toggle("Enabled", ref s.Enabled);
@@ -148,7 +234,8 @@ public sealed partial class OptionsWindow
 
     private static void DrawNameplates(NameplateSettings s)
     {
-        Ui.PageHeader("Nameplates", "Health bars above units. Turn the module on under General first.");
+        Ui.PageHeader("Nameplates", "Health bars above units.");
+        ModuleSwitch("Nameplates", ref Plugin.Profiles.Current.Modules.Nameplates, "Off by default because it draws over the game world.");
 
         Ui.Card("Nameplates");
         Ui.Toggle("Enabled", ref s.Enabled);
@@ -174,6 +261,7 @@ public sealed partial class OptionsWindow
     private static void DrawEnemyList(EnemyListSettings s)
     {
         Ui.PageHeader("Enemy List", "The enemies you are fighting, with casts and who they are attacking.");
+        ModuleSwitch("Enemy list", ref Plugin.Profiles.Current.Modules.EnemyList);
 
         Ui.Card("Enemy List");
         Ui.Toggle("Enabled", ref s.Enabled);
@@ -184,9 +272,9 @@ public sealed partial class OptionsWindow
         Ui.Toggle("Show casts", ref s.ShowCast);
         Ui.Toggle("Mark enemies attacking you", ref s.ShowAggro);
 
-        Ui.Card("Enemy List Text", TextTags.Help);
-        Ui.Text("Left text", ref s.LeftText);
-        Ui.Text("Right text", ref s.RightText);
+        Ui.Card("Enemy List Text");
+        Ui.TextContent("Left text", ref s.LeftText);
+        Ui.TextContent("Right text", ref s.RightText);
 
         DrawVisibility("Enemy List", s.Visibility);
     }
@@ -194,6 +282,7 @@ public sealed partial class OptionsWindow
     private static void DrawExtras(Profile profile)
     {
         Ui.PageHeader("Extras", "Small helpers: GCD, MP ticks, limit break, pull timer and experience.");
+        ModuleSwitch("Extras", ref Plugin.Profiles.Current.Modules.Extras);
 
         var gcd = profile.Gcd;
         Ui.Card("GCD");
@@ -228,7 +317,8 @@ public sealed partial class OptionsWindow
 
     private static void DrawHotbars(HotbarSettings s)
     {
-        Ui.PageHeader("Hotbars", "Show the game's hotbars only when you need them. Turn on \"Hotbar rules\" under General first.");
+        Ui.PageHeader("Hotbars", "Show the game's hotbars only when you need them.");
+        ModuleSwitch("Hotbar rules", ref Plugin.Profiles.Current.Modules.Hotbars, "Choosing a rule below turns this on for you.");
 
         Ui.Card("Hotbar Visibility", "Keybinds keep working while a hotbar is hidden.");
         for (var bar = 1; bar <= 11; bar++)
@@ -237,6 +327,7 @@ public sealed partial class OptionsWindow
             var label = bar == 11 ? "Cross hotbar" : $"Hotbar {bar}";
             if (Ui.Enum(label, ref mode))
             {
+                Plugin.Profiles.Current.Modules.Hotbars = true;
                 if (mode == VisibilityMode.Always)
                 {
                     s.Bars.Remove(bar);

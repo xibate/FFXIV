@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Text.RegularExpressions;
 using Dalamud.Bindings.ImGui;
+using LucentUI.Config;
+using LucentUI.Data;
 using LucentUI.Style;
 
 namespace LucentUI.Windows;
@@ -218,6 +220,100 @@ internal static partial class Ui
         }
 
         return Changed(changed);
+    }
+
+    public static bool Offset(string label, ref Vector2 value, string? help = null)
+    {
+        if (!Row(label, help))
+        {
+            return false;
+        }
+
+        if (!ImGui.DragFloat2("##" + label, ref value, 0.5f, -500f, 500f, "%.0f"))
+        {
+            return false;
+        }
+
+        value = new Vector2(MathF.Round(value.X), MathF.Round(value.Y));
+        return Changed(true);
+    }
+
+    private static readonly (string Name, string? Template)[] TextPresets =
+    {
+        ("None", ""),
+        ("Name", "{name}"),
+        ("First name", "{name:first}"),
+        ("Name (14 letters)", "{name:14}"),
+        ("Level and name", "{level} {name}"),
+        ("Health", "{hp}"),
+        ("Health %", "{hp:pct}%"),
+        ("Health | %", "{hp} | {hp:pct}%"),
+        ("% | Health", "{hp:pct}% | {hp}"),
+        ("Health / max", "{hp} / {hp:max}"),
+        ("Missing health", "{hp:deficit}"),
+        ("Mana", "{mp}"),
+        ("Mana %", "{mp:pct}%"),
+        ("Level", "{level}"),
+        ("Job", "{job}"),
+        ("Custom", null),
+    };
+
+    private static readonly HashSet<string> CustomText = new();
+
+    /// <summary>What a text shows, picked from presets like EllesmereUI's, or a custom tag template.</summary>
+    public static bool TextContent(string label, ref string template, string? help = null)
+    {
+        var current = template;
+        var key = (pendingTitle ?? string.Empty) + "/" + label;
+        var index = Array.FindIndex(TextPresets, p => p.Template == current);
+        var custom = index < 0 || CustomText.Contains(key);
+        var changed = false;
+
+        if (Row(label, help))
+        {
+            var preview = custom ? "Custom" : TextPresets[index].Name;
+            if (ImGui.BeginCombo("##" + label, preview))
+            {
+                foreach (var (name, value) in TextPresets)
+                {
+                    var selected = value == null ? custom : !custom && value == template;
+                    if (ImGui.Selectable(name, selected))
+                    {
+                        if (value == null)
+                        {
+                            CustomText.Add(key);
+                        }
+                        else
+                        {
+                            CustomText.Remove(key);
+                            template = value;
+                            changed = true;
+                        }
+                    }
+                }
+
+                ImGui.EndCombo();
+            }
+        }
+
+        if (custom || CustomText.Contains(key))
+        {
+            changed |= Text(label + ": custom", ref template, TextTags.Help, "e.g. {name} [hp:pct]%");
+        }
+
+        return Changed(changed);
+    }
+
+    /// <summary>Size, offset and colour rows for one piece of text.</summary>
+    public static void TextLook(string label, TextStyle style)
+    {
+        Slider(label + ": size", ref style.FontSize, 0, 40, "0 uses the font size from the Style page.");
+        Offset(label + ": offset", ref style.Offset, "Move the text (x, y) in pixels.");
+        Enum(label + ": colour", ref style.Color, "Job uses the unit's job colour (or reaction colour for NPCs).");
+        if (style.Color == TextColorMode.Custom)
+        {
+            Color(label + ": custom colour", ref style.CustomColor);
+        }
     }
 
     public static bool Button(string label, string buttonText, string? help = null) =>

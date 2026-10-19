@@ -67,7 +67,10 @@ public sealed unsafe class NameplatesElement : HudElement
                 continue;
             }
 
-            if (!Svc.GameGui.WorldToScreen(info->NamePlatePos, out var screen))
+            // Just above the unit's head (same height DelvUI uses).
+            var go = info->GameObject;
+            var head = new Vector3(go->Position.X, go->Position.Y + go->Height * 2.2f, go->Position.Z);
+            if (!Svc.GameGui.WorldToScreen(head, out var screen))
             {
                 continue;
             }
@@ -77,7 +80,7 @@ public sealed unsafe class NameplatesElement : HudElement
                 continue;
             }
 
-            var platePos = Gfx.Floor(screen + new Vector2(-s.Size.X / 2f, s.YOffset));
+            var platePos = Gfx.Floor(screen + new Vector2(-s.Size.X / 2f, -s.Size.Y + s.YOffset));
             if (ctx.Clips.Covers(platePos, platePos + s.Size))
             {
                 continue;

@@ -35,7 +35,7 @@ public struct GaugeValue
 }
 
 /// <summary>One bar of a job gauge.</summary>
-public sealed record GaugePart(string Id, string Label, GaugeKind Kind, Vector4 DefaultColor, Func<GaugeContext, GaugeValue> Read, int MinLevel = 1);
+public sealed record GaugePart(string Id, string Label, GaugeKind Kind, Vector4 DefaultColor, Func<GaugeContext, GaugeValue> Read, int MinLevel = 1, bool DefaultEnabled = true);
 
 /// <summary>What a gauge part can read: the player, their target, their level and helpers.</summary>
 public sealed class GaugeContext

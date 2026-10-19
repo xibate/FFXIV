@@ -64,12 +64,69 @@ public enum ClipMode
     Hide,
 }
 
+public enum TextColorMode
+{
+    White,
+    Job,
+    Custom,
+}
+
+public enum PowerPosition
+{
+    Below,
+    Above,
+}
+
+public enum IconSide
+{
+    None,
+    Left,
+    Right,
+}
+
+public enum AuraBorder
+{
+    None,
+    Thin,
+    ByType,
+}
+
+public enum TimerPosition
+{
+    Bottom,
+    Center,
+    Below,
+    Hidden,
+}
+
+public enum ListFilter
+{
+    /// <summary>Show everything.</summary>
+    None,
+    /// <summary>Hide the listed statuses.</summary>
+    HideListed,
+    /// <summary>Show only the listed statuses.</summary>
+    OnlyListed,
+}
+
+/// <summary>How one piece of text looks: size (0 = the profile's font size), offset and colour.</summary>
+public sealed class TextStyle
+{
+    public int FontSize = 0;
+    public Vector2 Offset = Vector2.Zero;
+    public TextColorMode Color = TextColorMode.White;
+    public Vector4 CustomColor = Vector4.One;
+}
+
 public sealed class VisibilitySettings
 {
     public VisibilityMode Mode = VisibilityMode.Always;
 
     /// <summary>Opacity used while the element is "hidden" by <see cref="Mode"/>. 0 hides it completely.</summary>
     public float HiddenAlpha = 0f;
+
+    /// <summary>Overall opacity of the element while it is shown.</summary>
+    public float Opacity = 1f;
 }
 
 /// <summary>Global settings that do not change between profiles.</summary>
@@ -80,6 +137,9 @@ public sealed class GeneralSettings
     public bool ClickToTarget = true;
     public bool RightClickMenu = true;
     public bool MouseoverTarget = true;
+
+    /// <summary>Actions used while hovering a frame go to that unit (when the action can target it).</summary>
+    public bool MouseoverCasting = true;
     public bool SmoothFades = true;
     public bool ClipBehindWindows = false;
     public ClipMode ClipMode = ClipMode.Clip;
@@ -152,6 +212,13 @@ public sealed class UnitFrameSettings
     public bool ShowShield = true;
     public bool ReverseFill = false;
     public bool Interactive = true;
+    public PowerPosition PowerPosition = PowerPosition.Below;
+    public TextStyle LeftStyle = new();
+    public TextStyle CenterStyle = new();
+    public TextStyle RightStyle = new();
+    public bool CustomBackground = false;
+    public Vector4 Background = new(0.05f, 0.05f, 0.06f, 0.85f);
+    public IconSide JobIcon = IconSide.None;
     public VisibilitySettings Visibility = new();
 }
 
@@ -164,6 +231,14 @@ public sealed class CastBarSettings
     public bool ShowTimer = true;
     public bool ShowSlidecast = true;
     public float SlidecastWindow = 0.5f;
+    public bool IconOnRight = false;
+    public TextStyle NameStyle = new();
+    public TextStyle TimerStyle = new();
+    public bool CustomColor = false;
+    public Vector4 Color = Colors.Rgb(0xE8C547);
+    public bool CustomBackground = false;
+    public Vector4 Background = new(0f, 0f, 0f, 0.7f);
+    public float Opacity = 1f;
 }
 
 public sealed class AuraSettings
@@ -183,6 +258,13 @@ public sealed class AuraSettings
     public bool SortByTime = false;
     public bool Tooltips = true;
     public bool RightClickToRemove = false;
+    public AuraBorder Border = AuraBorder.None;
+    public TimerPosition TimerPosition = TimerPosition.Bottom;
+    public int TimerFontSize = 0;
+    public ListFilter Filter = ListFilter.None;
+
+    /// <summary>Status ids used by <see cref="Filter"/>.</summary>
+    public List<uint> FilterIds = new();
 }
 
 public sealed class PartySettings
@@ -198,6 +280,8 @@ public sealed class PartySettings
     public int PowerHeight = 4;
     public string LeftText = "{name:14}";
     public string RightText = "{hp:pct}%";
+    public TextStyle LeftStyle = new();
+    public TextStyle RightStyle = new();
     public HealthColorMode ColorMode = HealthColorMode.Inherit;
     public bool ShowShield = true;
     public bool RangeFade = true;
@@ -226,6 +310,12 @@ public sealed class GaugePartSettings
     public bool Enabled = true;
     public bool CustomColor = false;
     public Vector4 Color = Vector4.One;
+
+    /// <summary>Shown as its own movable bar instead of in the stacked job gauge.</summary>
+    public bool Detached = false;
+
+    /// <summary>Size while detached; 0 uses the job gauge's width and bar height.</summary>
+    public Vector2 Size = Vector2.Zero;
 }
 
 public sealed class JobGaugeSettings
@@ -264,6 +354,9 @@ public sealed class CooldownBarSettings
     public bool ShowCooldownText = true;
     public bool ShowCharges = true;
     public bool DimOnCooldown = true;
+    public float IconZoom = 0.06f;
+    public int TimerFontSize = 0;
+    public bool ShowBackground = true;
     public VisibilitySettings Visibility = new();
 }
 
@@ -278,10 +371,19 @@ public sealed class CooldownManagerSettings
 {
     public CooldownBarSettings Cooldowns = new();
     public CooldownBarSettings Utility = new() { IconSize = 36f, MaxIcons = 8 };
-    public CooldownBarSettings Buffs = new() { IconSize = 32f, MaxIcons = 8 };
+    public CooldownBarSettings Buffs = new() { IconSize = 32f, MaxIcons = 8, ShowBackground = false };
 
     /// <summary>Job id → custom action lists. Jobs without an entry use the automatic list.</summary>
     public Dictionary<uint, JobCooldownSelection> Jobs = new();
+
+    /// <summary>Buffs bar: show all your own buffs, or only the ones tracked for the current job.</summary>
+    public bool OnlyTrackedBuffs = false;
+
+    /// <summary>Job id → status ids shown on the Buffs bar when <see cref="OnlyTrackedBuffs"/> is on.</summary>
+    public Dictionary<uint, List<uint>> TrackedBuffs = new();
+
+    /// <summary>Status ids never shown on the Buffs bar.</summary>
+    public List<uint> HiddenBuffs = new();
 }
 
 public sealed class PartyCooldownSettings

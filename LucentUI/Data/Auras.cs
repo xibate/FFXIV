@@ -44,6 +44,11 @@ public static class Auras
                 continue;
             }
 
+            if (settings.Filter != ListFilter.None && settings.FilterIds.Contains(status.StatusId) == (settings.Filter == ListFilter.HideListed))
+            {
+                continue;
+            }
+
             var permanent = info.IsPermanent || status.RemainingTime <= 0f;
             var mine = status.SourceId == playerId;
             if ((info.IsDebuff ? !settings.ShowDebuffs : !settings.ShowBuffs) ||
@@ -118,6 +123,73 @@ public static class Auras
     }
 
     public static uint IconOf(uint statusId) => Info(statusId)?.Icon ?? 0;
+
+    public static string NameOf(uint statusId) => Info(statusId)?.Name is { Length: > 0 } name ? name : $"Status {statusId}";
+
+    /// <summary>Statuses currently on a unit, for "add from what is active now" pickers.</summary>
+    public static List<(uint Id, string Name)> ActiveOn(IGameObject? obj, bool onlyMine)
+    {
+        var list = new List<(uint, string)>();
+        if (obj is not IBattleChara chara)
+        {
+            return list;
+        }
+
+        var playerId = Svc.ObjectTable.LocalPlayer?.EntityId ?? 0;
+        foreach (var status in chara.StatusList)
+        {
+            if (status == null || status.StatusId == 0 || (onlyMine && status.SourceId != playerId) || list.Exists(e => e.Item1 == status.StatusId))
+            {
+                continue;
+            }
+
+            list.Add((status.StatusId, NameOf(status.StatusId)));
+        }
+
+        return list;
+    }
+
+    /// <summary>Statuses whose name contains <paramref name="text"/> (or whose id is <paramref name="text"/>).</summary>
+    public static List<(uint Id, string Name)> Search(string text, int max = 8)
+    {
+        var list = new List<(uint, string)>();
+        text = text.Trim();
+        if (text.Length == 0)
+        {
+            return list;
+        }
+
+        if (uint.TryParse(text, out var id) && Info(id) != null)
+        {
+            list.Add((id, NameOf(id)));
+            return list;
+        }
+
+        if (text.Length < 3)
+        {
+            return list;
+        }
+
+        foreach (var row in Svc.DataManager.GetExcelSheet<Status>())
+        {
+            if (row.Icon == 0 || row.Name.IsEmpty)
+            {
+                continue;
+            }
+
+            var name = row.Name.ExtractText();
+            if (name.Contains(text, System.StringComparison.OrdinalIgnoreCase))
+            {
+                list.Add((row.RowId, name));
+                if (list.Count >= max)
+                {
+                    break;
+                }
+            }
+        }
+
+        return list;
+    }
 
     public static bool IsDispellable(uint statusId) => Info(statusId)?.CanDispel ?? false;
 

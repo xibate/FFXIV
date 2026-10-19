@@ -22,6 +22,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly HudRenderer hud;
     private readonly DefaultHudHider hider;
     private readonly Data.PartyCooldownTracker cooldowns;
+    private readonly MouseoverCaster mouseover;
     private readonly OptionsWindow options;
     private uint lastJobId;
 
@@ -34,6 +35,7 @@ public sealed class Plugin : IDalamudPlugin
 
         cooldowns = new Data.PartyCooldownTracker();
         hud = new HudRenderer(cooldowns);
+        mouseover = new MouseoverCaster(hud.Input);
         hider = new DefaultHudHider();
         options = new OptionsWindow(hud);
         windows.AddWindow(options);
@@ -88,6 +90,7 @@ public sealed class Plugin : IDalamudPlugin
         hider.Dispose();
         hud.Dispose();
         cooldowns.Dispose();
+        mouseover.Dispose();
 
         if (dirty)
         {
@@ -117,6 +120,7 @@ public sealed class Plugin : IDalamudPlugin
         var profile = Profiles.Current;
         hider.Update(profile, Config.General);
         cooldowns.SetEnabled(profile.Modules.PartyCooldowns && profile.PartyCooldowns.Enabled);
+        mouseover.SetEnabled(Config.General.MouseoverCasting);
 
         if (dirty && DateTime.UtcNow - dirtySince > SaveDelay)
         {

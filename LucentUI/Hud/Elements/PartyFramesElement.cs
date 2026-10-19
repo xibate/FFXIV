@@ -88,6 +88,8 @@ public sealed class PartyFramesElement : HudElement
                 LeftText = s.LeftText,
                 CenterText = string.Empty,
                 RightText = s.RightText,
+                LeftStyle = s.LeftStyle,
+                RightStyle = s.RightStyle,
                 ColorMode = s.ColorMode,
                 ShowShield = s.ShowShield,
                 Highlight = isTarget,

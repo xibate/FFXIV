@@ -65,10 +65,22 @@ public sealed class AuraElement : HudElement
     {
         var s = Settings(profile);
         var (columns, rows) = Grid(s);
-        var icon = IconSize(s);
+        var cell = CellSize(s, profile.Style);
         return new Vector2(
-            columns * icon.X + (columns - 1) * s.Spacing,
-            rows * icon.Y + (rows - 1) * s.Spacing);
+            columns * cell.X + (columns - 1) * s.Spacing,
+            rows * cell.Y + (rows - 1) * s.Spacing);
+    }
+
+    /// <summary>One icon's slot, including room for the timer when it sits below the icon.</summary>
+    private static Vector2 CellSize(AuraSettings s, StyleSettings style)
+    {
+        var icon = IconSize(s);
+        if (s.ShowTimer && s.TimerPosition == TimerPosition.Below)
+        {
+            icon.Y += (s.TimerFontSize > 0 ? s.TimerFontSize : style.SmallFontSize) + 2;
+        }
+
+        return icon;
     }
 
     public override void Draw(DrawContext ctx, Vector2 pos)
@@ -90,18 +102,19 @@ public sealed class AuraElement : HudElement
 
         var size = GetSize(ctx.Profile);
         var icon = IconSize(s);
+        var cell = CellSize(s, ctx.Style);
         var (columns, _) = Grid(s);
         var count = Math.Min(auras.Count, Math.Max(1, s.MaxIcons));
 
-        using var font = ctx.Fonts.PushSmall();
+        using var font = s.TimerFontSize > 0 ? ctx.Fonts.Push(s.TimerFontSize) : ctx.Fonts.PushSmall();
         for (var i = 0; i < count; i++)
         {
             var aura = auras[i];
             var col = i % columns;
             var row = i / columns;
 
-            var x = s.GrowLeft ? size.X - (col + 1) * icon.X - col * s.Spacing : col * (icon.X + s.Spacing);
-            var y = s.GrowUp ? size.Y - (row + 1) * icon.Y - row * s.Spacing : row * (icon.Y + s.Spacing);
+            var x = s.GrowLeft ? size.X - (col + 1) * cell.X - col * s.Spacing : col * (cell.X + s.Spacing);
+            var y = s.GrowUp ? size.Y - (row + 1) * cell.Y - row * s.Spacing : row * (cell.Y + s.Spacing);
             var min = Gfx.Floor(pos + new Vector2(x, y));
             var max = min + icon;
 
@@ -116,17 +129,32 @@ public sealed class AuraElement : HudElement
 
     private static void DrawIcon(DrawContext ctx, AuraSettings s, in AuraData aura, Vector2 min, Vector2 max)
     {
-        var style = ctx.Style;
-        var border = aura.IsDebuff ? Colors.Rgb(0x8A1F1F) : style.Border;
-        ctx.DrawList.AddRectFilled(min - Vector2.One, max + Vector2.One, ctx.Col(border));
-
+        // The game's status icons have transparent corners, so nothing is filled behind them.
         var texture = Svc.TextureProvider.GetFromGameIcon(new GameIconLookup(aura.Icon)).GetWrapOrEmpty();
         ctx.DrawList.AddImage(texture.Handle, min, max, Vector2.Zero, Vector2.One, ctx.Col(Vector4.One));
 
-        if (s.ShowTimer && !aura.IsPermanent && aura.Remaining > 0f)
+        Vector4? outline = s.Border switch
+        {
+            AuraBorder.Thin => ctx.Style.Border,
+            AuraBorder.ByType => aura.CanDispel ? Colors.Rgb(0xB65CE6) : aura.IsDebuff ? Colors.Rgb(0xC8423C) : ctx.Style.Border,
+            _ => null,
+        };
+        if (outline is { } line)
+        {
+            ctx.DrawList.AddRect(min - Vector2.One, max + Vector2.One, ctx.Col(line), 0f, default, 1f);
+        }
+
+        if (s.ShowTimer && s.TimerPosition != TimerPosition.Hidden && !aura.IsPermanent && aura.Remaining > 0f)
         {
             var color = aura.Remaining < 5f ? Colors.Rgb(0xFF6B5E) : Vector4.One;
-            Gfx.Text(ctx, TextTags.Duration(aura.Remaining), new Vector2((min.X + max.X) / 2f, max.Y - 6f), TextAlign.Center, color);
+            var centreX = (min.X + max.X) / 2f;
+            var y = s.TimerPosition switch
+            {
+                TimerPosition.Center => (min.Y + max.Y) / 2f,
+                TimerPosition.Below => max.Y + ImGui.GetFontSize() / 2f + 1f,
+                _ => max.Y - ImGui.GetFontSize() * 0.4f,
+            };
+            Gfx.Text(ctx, TextTags.Duration(aura.Remaining), new Vector2(centreX, y), TextAlign.Center, color);
         }
     }
 

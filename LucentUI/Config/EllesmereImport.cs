@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using LucentUI.Gauges;
 
 namespace LucentUI.Config;
 
@@ -280,6 +281,9 @@ public static class EllesmereImport
 
         /// <summary>EllesmereUI key of the frame this cast bar is locked under (no saved position of its own).</summary>
         public string? LockedUnder;
+
+        /// <summary>More LucentUI ids that get the same position (e.g. one resource bar mapped to every job).</summary>
+        public List<string> AlsoIds = new();
     }
 
     /// <summary>
@@ -314,7 +318,7 @@ public static class EllesmereImport
             // WoW UI units → pixels. EllesmereUI's pixel-perfect scale maps 1 unit to 1 pixel on the exporter's
             // screen; without a scale, assume that on a 1080p screen. Scale to this screen's height.
             var uiScale = Num(Get(profile, "uiScale")) ?? Num(Get(account, "ppUIScale")) ?? Num(Get(account, "uiScale"));
-            scale = uiScale is > 0 ? (float)uiScale.Value * screen.Y / 768f : screen.Y / 1080f;
+            scale = uiScale is > 0 ? (float)uiScale.Value * screen.Y / 768f : 1f;
         }
 
         public bool ConvertedAnything { get; private set; }
@@ -359,11 +363,23 @@ public static class EllesmereImport
 
             foreach (var placement in placed.Values)
             {
-                if (placement.TopLeft is { } pos)
+                if (placement.TopLeft is not { } pos)
+                {
+                    continue;
+                }
+
+                if (placement.Id.Length > 0)
                 {
                     P.Layout.Positions[placement.Id] = pos;
                 }
+
+                foreach (var id in placement.AlsoIds)
+                {
+                    P.Layout.Positions[id] = pos;
+                }
             }
+
+            PlaceRemainingGauge();
 
             ConvertedAnything = converted.Count > 0;
             if (ConvertedAnything)
@@ -457,6 +473,16 @@ public static class EllesmereImport
                 s.LeftText = TextTemplate(Str(Get(frame, "leftTextContent")) ?? d.Left, s.LeftText);
                 s.RightText = TextTemplate(Str(Get(frame, "rightTextContent")) ?? d.Right, s.RightText);
                 s.CenterText = TextTemplate(Str(Get(frame, "centerTextContent")) ?? "none", s.CenterText);
+                TextLook(frame, "leftText", s.LeftStyle, 12);
+                TextLook(frame, "rightText", s.RightStyle, 12);
+                TextLook(frame, "centerText", s.CenterStyle, 12);
+                s.PowerPosition = powerPosition == "above" ? PowerPosition.Above : PowerPosition.Below;
+
+                if (d.EuiKey != "player" && Color(Get(frame, "customBgColor")) is { } frameBackground)
+                {
+                    s.CustomBackground = true;
+                    s.Background = frameBackground with { W = P.Style.Background.W };
+                }
                 s.ReverseFill = Bool(Get(frame, "healthReverseFill")) ?? false;
                 s.Enabled = Bool(Get(enabled, d.EuiKey)) ?? true;
 
@@ -469,6 +495,24 @@ public static class EllesmereImport
 
             UnitCastBars(uf, positions);
             Auras(Table(Get(uf, "playerAuraBars")));
+        }
+
+        /// <summary>Text size, offset and class-colour flag stored as prefixSize / prefixX / prefixY / prefixClassColor.</summary>
+        private void TextLook(Dictionary<object, object?> table, string prefix, TextStyle style, double defaultSize)
+        {
+            style.FontSize = (int)MathF.Round((float)(Num(Get(table, prefix + "Size")) ?? defaultSize) * scale);
+            style.Offset = new Vector2(
+                MathF.Round((float)(Num(Get(table, prefix + "X")) ?? 0) * scale),
+                MathF.Round(-(float)(Num(Get(table, prefix + "Y")) ?? 0) * scale));
+            if (Bool(Get(table, prefix + "ClassColor")) == true)
+            {
+                style.Color = TextColorMode.Job;
+            }
+            else if (Color(Get(table, prefix + "Color")) is { } color && color != Vector4.One)
+            {
+                style.Color = TextColorMode.Custom;
+                style.CustomColor = color;
+            }
         }
 
         private UnitFrameSettings FrameSettings(string euiKey) => euiKey switch
@@ -487,6 +531,7 @@ public static class EllesmereImport
                 var size = Scaled(Num(Get(player, "playerCastbarWidth")) ?? 181, Num(Get(player, "playerCastbarHeight")) ?? 14);
                 P.PlayerCast.Size = size;
                 P.PlayerCast.ShowIcon = Bool(Get(player, "showPlayerCastIcon")) ?? true;
+                UnitCastLook(player!, P.PlayerCast);
                 PlaceCastBar("playerCastbar", "cast.player", "player", size, positions, P.PlayerCast);
                 converted.Add("player cast bar");
             }
@@ -501,10 +546,28 @@ public static class EllesmereImport
                 settings.Enabled = Bool(Get(frame, "showCastbar")) ?? true;
                 var size = Scaled(Num(Get(frame, "castbarWidth")) ?? defaultWidth, Num(Get(frame, "castbarHeight")) ?? 14);
                 settings.Size = size;
+                settings.ShowIcon = Bool(Get(frame, "showCastIcon")) ?? true;
+                if (frame != null)
+                {
+                    UnitCastLook(frame, settings);
+                }
+
                 PlaceCastBar(key, element, unit, size, positions, settings);
             }
 
             converted.Add("target and focus cast bars");
+        }
+
+        private void UnitCastLook(Dictionary<object, object?> frame, CastBarSettings settings)
+        {
+            TextLook(frame, "castSpellName", settings.NameStyle, 11);
+            TextLook(frame, "castDuration", settings.TimerStyle, 10);
+            settings.ShowTimer = Bool(Get(frame, "showCastDuration")) ?? true;
+            if (Color(Get(frame, "castbarFillColor")) is { } fill)
+            {
+                settings.CustomColor = true;
+                settings.Color = fill;
+            }
         }
 
         private void PlaceCastBar(string key, string element, string frameKey, Vector2 size, Dictionary<object, object?>? positions, CastBarSettings settings)
@@ -554,32 +617,49 @@ public static class EllesmereImport
                 s.ShowIcon = Bool(Get(cast, "showIcon")) ?? true;
                 s.ShowTimer = Bool(Get(cast, "showTimer")) ?? true;
                 s.ShowName = Bool(Get(cast, "showSpellText")) ?? true;
-                P.Style.Cast = RgbFields(cast, "fill") ?? Colors(0.898f, 0.729f, 0.267f);
+                s.IconOnRight = Bool(Get(cast, "iconOnRight")) ?? false;
+                s.CustomColor = true;
+                s.Color = RgbFields(cast, "fill") ?? Colors(0.898f, 0.729f, 0.267f);
+                s.CustomBackground = true;
+                s.Background = RgbFields(cast, "bg", Num(Get(cast, "bgA")) ?? 0.7) ?? new Vector4(0, 0, 0, 0.7f);
+                s.NameStyle.FontSize = (int)MathF.Round((float)(Num(Get(cast, "spellTextSize")) ?? 11) * scale);
+                s.TimerStyle.FontSize = (int)MathF.Round((float)(Num(Get(cast, "timerSize")) ?? 11) * scale);
+                s.NameStyle.Offset = new Vector2(MathF.Round((float)(Num(Get(cast, "spellTextX")) ?? 0) * scale), MathF.Round(-(float)(Num(Get(cast, "spellTextY")) ?? 0) * scale));
+                s.TimerStyle.Offset = new Vector2(MathF.Round((float)(Num(Get(cast, "timerX")) ?? 0) * scale), MathF.Round(-(float)(Num(Get(cast, "timerY")) ?? 0) * scale));
                 var topLeft = Position(Table(Get(cast, "unlockPos")), s.Size)
                     ?? FromCentre(Num(Get(cast, "anchorX")) ?? 0, Num(Get(cast, "anchorY")) ?? -54, s.Size);
                 Place("ERB_CastBar", "cast.player", s.Size, topLeft, w => s.Size = s.Size with { X = MathF.Round(w) });
                 converted.Add("cast bar");
             }
 
-            // Power / class resource bars → the job gauge.
+            // Power bar → each job's main resource bar; class resource → each job's stacks. Both become detached
+            // job gauge bars with EllesmereUI's size and position; the rest of the job gauge goes underneath.
             var primary = Table(Get(rb, "primary")) ?? new Dictionary<object, object?>();
             var secondary = Table(Get(rb, "secondary")) ?? new Dictionary<object, object?>();
-            var usePrimary = Bool(Get(primary, "enabled")) != false;
-            var bar = usePrimary ? primary : secondary;
-            if (usePrimary || Bool(Get(secondary, "enabled")) != false)
+            if (Bool(Get(primary, "enabled")) != false)
             {
-                var g = P.JobGauge;
-                var width = usePrimary ? Num(Get(primary, "width")) ?? 214 : Num(Get(secondary, "pipWidth")) ?? 214;
-                var height = usePrimary ? Num(Get(primary, "height")) ?? 14 : Num(Get(secondary, "pipHeight")) ?? 20;
-                g.Enabled = true;
-                g.Width = MathF.Round((float)width * scale);
-                g.BarHeight = MathF.Round((float)height * scale);
-                var size = new Vector2(g.Width, g.BarHeight);
-                var offset = new Vector2((float)(Num(Get(bar, "offsetX")) ?? 0), (float)(Num(Get(bar, "offsetY")) ?? (usePrimary ? -54 : -38)));
-                var centre = groupCentre + offset;
-                var topLeft = Position(Table(Get(bar, "unlockPos")), size) ?? FromCentre(centre.X, centre.Y, size);
-                Place(usePrimary ? "ERB_Power" : "ERB_ClassResource", "jobgauge", size, topLeft, w => g.Width = MathF.Round(w));
-                converted.Add("resource bars (as the job gauge)");
+                var size = Scaled(Num(Get(primary, "width")) ?? 214, Num(Get(primary, "height")) ?? 14);
+                var centre = groupCentre + new Vector2((float)(Num(Get(primary, "offsetX")) ?? 0), (float)(Num(Get(primary, "offsetY")) ?? -54));
+                var topLeft = Position(Table(Get(primary, "unlockPos")), size) ?? FromCentre(centre.X, centre.Y, size);
+                // Healers and casters: EllesmereUI's power bar is mana. Everyone else: the job's own resource.
+                DetachGaugeBars("ERB_Power", size, topLeft, (job, p) =>
+                    Style.Jobs.Get(job).Role is Style.JobRole.Healer or Style.JobRole.Caster ? p.Id == "mana" || (p.Kind == GaugeKind.Resource && !HasMana(job)) : p.Kind == GaugeKind.Resource);
+                converted.Add("power bar");
+            }
+
+            if (Bool(Get(secondary, "enabled")) != false)
+            {
+                var size = Scaled(Num(Get(secondary, "pipWidth")) ?? 214, Num(Get(secondary, "pipHeight")) ?? 20);
+                var centre = groupCentre + new Vector2((float)(Num(Get(secondary, "offsetX")) ?? 0), (float)(Num(Get(secondary, "offsetY")) ?? -38));
+                var topLeft = Position(Table(Get(secondary, "unlockPos")), size) ?? FromCentre(centre.X, centre.Y, size);
+                DetachGaugeBars("ERB_ClassResource", size, topLeft, (_, p) => p.Kind is GaugeKind.Stacks or GaugeKind.Pips);
+                converted.Add("class resource bar");
+            }
+
+            if (placed.ContainsKey("ERB_Power") || placed.ContainsKey("ERB_ClassResource"))
+            {
+                P.JobGauge.Enabled = true;
+                P.Modules.JobGauges = true;
             }
 
             // GCD bar.
@@ -593,6 +673,63 @@ public static class EllesmereImport
                 Place("ERB_GCDBar", "gcd", P.Gcd.Size, Position(Table(Get(gcd, "unlockPos")), P.Gcd.Size), w => P.Gcd.Size = P.Gcd.Size with { X = MathF.Round(w) });
                 converted.Add("GCD bar");
             }
+        }
+
+        /// <summary>Detaches, on every job, the first gauge bar matching <paramref name="pick"/> and gives it this size and position.</summary>
+        private static bool HasMana(uint job) => Gauges.JobGaugeDefinitions.ByJob[job].Any(p => p.Id == "mana");
+
+        private void DetachGaugeBars(string euiKey, Vector2 size, Vector2? topLeft, Func<uint, Gauges.GaugePart, bool> pick)
+        {
+            var placement = new Placement { Size = size, TopLeft = topLeft };
+            var taken = euiKey == "ERB_ClassResource" && placed.TryGetValue("ERB_Power", out var power) ? power.AlsoIds : new List<string>();
+            foreach (var (job, parts) in Gauges.JobGaugeDefinitions.ByJob)
+            {
+                foreach (var part in parts)
+                {
+                    var key = Hud.Elements.JobGaugeElement.PartKey(job, part);
+                    if (!pick(job, part) || taken.Contains("gauge." + key))
+                    {
+                        continue;
+                    }
+
+                    P.JobGauge.Parts[key] = new GaugePartSettings { Enabled = true, Detached = true, Size = size, Color = part.DefaultColor };
+                    placement.AlsoIds.Add("gauge." + key);
+                    break;
+                }
+            }
+
+            placement.SetWidth = w =>
+            {
+                foreach (var id in placement.AlsoIds)
+                {
+                    var key = id["gauge.".Length..];
+                    P.JobGauge.Parts[key].Size = P.JobGauge.Parts[key].Size with { X = MathF.Round(w) };
+                }
+            };
+            placed[euiKey] = placement;
+        }
+
+        /// <summary>The job gauge bars EllesmereUI has no equivalent for (timers, procs) go under the resource bars.</summary>
+        private void PlaceRemainingGauge()
+        {
+            var bars = new[] { "ERB_Power", "ERB_ClassResource" }
+                .Where(placed.ContainsKey)
+                .Select(k => placed[k])
+                .Where(p => p.TopLeft != null)
+                .ToList();
+            if (bars.Count == 0)
+            {
+                return;
+            }
+
+            // Sized like the power bar (after any width match), slightly slimmer.
+            var reference = placed.TryGetValue("ERB_Power", out var power) ? power : bars[0];
+            P.JobGauge.Width = reference.Size.X;
+            P.JobGauge.BarHeight = Math.Max(6f, MathF.Round(reference.Size.Y * 0.8f));
+
+            var left = bars.Min(b => b.TopLeft!.Value.X);
+            var bottom = bars.Max(b => b.TopLeft!.Value.Y + b.Size.Y);
+            P.Layout.Positions["jobgauge"] = new Vector2(left, bottom + 4);
         }
 
         // ── Cooldown manager ─────────────────────────────────────────────────
@@ -670,8 +807,50 @@ public static class EllesmereImport
             s.Align = point.Contains("LEFT") ? BarAlign.Left : point.Contains("RIGHT") ? BarAlign.Right : BarAlign.Center;
 
             var size = Hud.Elements.CooldownBarElement.BoxSize(s);
-            Place("CDM_" + key, "cdm." + key, size, Position(position, size), null);
+            var defaultY = key switch
+            {
+                "cooldowns" => -275,
+                "utility" => -320,
+                _ => -365,
+            };
+            Place("CDM_" + key, "cdm." + key, size, Position(position, size) ?? FromCentre(0, defaultY, size), null);
+
+            // A bar can also be attached to the player frame or a resource bar from its own settings.
+            var anchorTo = Str(Get(bar, "anchorTo")) ?? "none";
+            var gap = Num(Get(bar, "spacing")) ?? 2;
+            var ox = Num(Get(bar, "anchorOffsetX")) ?? 0;
+            var oy = Num(Get(bar, "anchorOffsetY")) ?? 0;
+            switch (anchorTo)
+            {
+                case "playerframe":
+                    barLinks["CDM_" + key] = ("player", (Str(Get(bar, "playerFrameSide")) ?? "LEFT").ToUpperInvariant(), Num(Get(bar, "playerFrameOffsetX")) ?? 0, Num(Get(bar, "playerFrameOffsetY")) ?? 0);
+                    s.Align = BarAlign.Center;
+                    break;
+                case "erb_castbar" or "erb_powerbar" or "erb_classresource":
+                {
+                    var target = anchorTo switch
+                    {
+                        "erb_castbar" => "ERB_CastBar",
+                        "erb_powerbar" => "ERB_Power",
+                        _ => "ERB_ClassResource",
+                    };
+                    var side = (Str(Get(bar, "anchorPosition")) ?? "left").ToUpperInvariant();
+                    var (dx, dy) = side switch
+                    {
+                        "LEFT" => (-gap + ox, oy),
+                        "RIGHT" => (gap + ox, oy),
+                        "TOP" => (ox, gap + oy),
+                        _ => (ox, -gap + oy),
+                    };
+                    barLinks["CDM_" + key] = (target, side, dx, dy);
+                    s.Align = BarAlign.Center;
+                    break;
+                }
+            }
         }
+
+        /// <summary>Cooldown bars attached through their own "anchor to" setting: key → (target, side, x, y).</summary>
+        private readonly Dictionary<string, (string Target, string Side, double X, double Y)> barLinks = new();
 
         // ── Party frames ─────────────────────────────────────────────────────
 
@@ -725,7 +904,11 @@ public static class EllesmereImport
             }
 
             var linked = 0;
-            anchors ??= new Dictionary<object, object?>();
+            anchors = anchors != null ? new Dictionary<object, object?>(anchors) : new Dictionary<object, object?>();
+            foreach (var (child, (target, side, x, y)) in barLinks)
+            {
+                anchors[child] = new Dictionary<object, object?> { ["target"] = target, ["side"] = side, ["offsetX"] = x, ["offsetY"] = y };
+            }
             // Links can chain (cast bar → player frame → ...), so resolve them in a few passes.
             for (var pass = 0; pass < 4; pass++)
             {
@@ -827,12 +1010,12 @@ public static class EllesmereImport
         };
 
         /// <summary>Colours stored as prefixR/prefixG/prefixB fields (e.g. fillR, fillG, fillB).</summary>
-        private static Vector4? RgbFields(Dictionary<object, object?> table, string prefix)
+        private static Vector4? RgbFields(Dictionary<object, object?> table, string prefix, double alpha = 1)
         {
             var r = Num(Get(table, prefix + "R"));
             var g = Num(Get(table, prefix + "G"));
             var b = Num(Get(table, prefix + "B"));
-            return r != null && g != null && b != null ? new Vector4((float)r, (float)g, (float)b, 1f) : null;
+            return r != null && g != null && b != null ? new Vector4((float)r, (float)g, (float)b, (float)alpha) : null;
         }
 
         private static Vector4 Colors(float r, float g, float b) => new(r, g, b, 1f);

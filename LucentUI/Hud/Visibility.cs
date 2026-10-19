@@ -14,7 +14,8 @@ public static class Visibility
             return 1f;
         }
 
-        return IsVisible(settings.Mode) ? 1f : Math.Clamp(settings.HiddenAlpha, 0f, 1f);
+        var opacity = Math.Clamp(settings.Opacity, 0f, 1f);
+        return (IsVisible(settings.Mode) ? 1f : Math.Clamp(settings.HiddenAlpha, 0f, 1f)) * opacity;
     }
 
     public static bool IsVisible(VisibilityMode mode) => mode switch

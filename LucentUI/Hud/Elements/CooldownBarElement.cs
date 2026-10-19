@@ -114,7 +114,7 @@ public sealed unsafe class CooldownBarElement : HudElement
             _ => MathF.Floor((box.X - usedWidth) / 2f),
         };
 
-        using var font = ctx.Fonts.PushSmall();
+        using var font = s.TimerFontSize > 0 ? ctx.Fonts.Push(s.TimerFontSize) : ctx.Fonts.PushSmall();
         for (var i = 0; i < count; i++)
         {
             var col = i % columns;
@@ -126,8 +126,8 @@ public sealed unsafe class CooldownBarElement : HudElement
 
     private void DrawIcon(DrawContext ctx, CooldownBarSettings s, in Icon icon, Vector2 pos, float size)
     {
-        var (min, max) = Gfx.Panel(ctx, pos, new Vector2(size));
         var dl = ctx.DrawList;
+        var (min, max) = s.ShowBackground ? Gfx.Panel(ctx, pos, new Vector2(size)) : (pos, pos + new Vector2(size));
         var texture = Svc.TextureProvider.GetFromGameIcon(new GameIconLookup(icon.IconId)).GetWrapOrEmpty();
 
         // Buff icons are 3:4 portraits; action icons are square with a frame we crop slightly.
@@ -140,7 +140,8 @@ public sealed unsafe class CooldownBarElement : HudElement
         else
         {
             var tint = s.DimOnCooldown && !icon.Active && icon.Charges == 0 ? new Vector4(0.6f, 0.6f, 0.6f, 1f) : Vector4.One;
-            dl.AddImage(texture.Handle, min, max, new Vector2(0.06f), new Vector2(0.94f), ctx.Col(tint));
+            var zoom = Math.Clamp(s.IconZoom, 0f, 0.3f);
+            dl.AddImage(texture.Handle, min, max, new Vector2(zoom), new Vector2(1f - zoom), ctx.Col(tint));
         }
 
         if (icon.Total > 0f && icon.Remaining > 0f)
@@ -197,8 +198,15 @@ public sealed unsafe class CooldownBarElement : HudElement
         if (kind == CooldownBarKind.Buffs)
         {
             Auras.Collect(Svc.ObjectTable.LocalPlayer, buffFilter, buffs);
+            settings.TrackedBuffs.TryGetValue(jobId, out var tracked);
             foreach (var buff in buffs)
             {
+                if (settings.HiddenBuffs.Contains(buff.StatusId) ||
+                    (settings.OnlyTrackedBuffs && (tracked == null || !tracked.Contains(buff.StatusId))))
+                {
+                    continue;
+                }
+
                 icons.Add(new Icon { IconId = buff.Icon, Remaining = buff.Remaining, Total = Math.Max(buff.Remaining, 1f), Active = true });
             }
 

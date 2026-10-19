@@ -15,7 +15,8 @@ public static partial class TextTags
     public const string Help =
         "Tags: {name}  {name:12}  {name:first}  {level}  {job}  {hp}  {hp:max}  {hp:pct}  {hp:deficit}  {mp}  {mp:max}  {mp:pct}";
 
-    [GeneratedRegex(@"\{([a-zA-Z]+)(?::([a-zA-Z0-9]+))?\}")]
+    // {tag} or [tag], with an optional :argument.
+    [GeneratedRegex(@"[\{\[]([a-zA-Z]+)(?::([a-zA-Z0-9]+))?[\}\]]")]
     private static partial Regex TagRegex();
 
     public static string Format(string template, UnitData unit, bool abbreviate)
@@ -25,15 +26,21 @@ public static partial class TextTags
             return string.Empty;
         }
 
-        if (!template.Contains('{'))
+        if (!template.Contains('{') && !template.Contains('['))
         {
             return template;
         }
 
-        return TagRegex().Replace(template, m => Resolve(m.Groups[1].Value.ToLowerInvariant(), m.Groups[2].Value.ToLowerInvariant(), unit, abbreviate));
+        return TagRegex().Replace(template, m =>
+        {
+            var resolved = Resolve(m.Groups[1].Value.ToLowerInvariant(), m.Groups[2].Value.ToLowerInvariant(), unit, abbreviate);
+
+            // Unknown [words] stay as typed (they may just be text); unknown {tags} disappear.
+            return resolved ?? (m.Value[0] == '[' ? m.Value : string.Empty);
+        });
     }
 
-    private static string Resolve(string tag, string arg, UnitData u, bool abbreviate)
+    private static string? Resolve(string tag, string arg, UnitData u, bool abbreviate)
     {
         switch (tag)
         {
@@ -46,7 +53,7 @@ public static partial class TextTags
 
                 if (int.TryParse(arg, out var max) && max > 0 && u.Name.Length > max)
                 {
-                    return u.Name[..max].TrimEnd() + "…";
+                    return u.Name[..max].TrimEnd() + ".";
                 }
 
                 return u.Name;
@@ -65,7 +72,7 @@ public static partial class TextTags
                 return u.MaxPower > 0 ? Value(u.Power, u.MaxPower, arg, abbreviate) : string.Empty;
 
             default:
-                return string.Empty;
+                return null;
         }
     }
 

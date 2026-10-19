@@ -7,12 +7,12 @@ Inspired by [EllesmereUI](https://github.com/EllesmereGaming/EllesmereUI) for Wo
 
 | Module | Contents |
 | --- | --- |
-| **Unit Frames** | Player, Target, Target of Target and Focus. Health, shields, mana/GP/CP, job/role/gradient/dark colour modes, text templates, smooth health animation. Click to target, right-click menu, `<mo>` mouseover. |
+| **Unit Frames** | Player, Target, Target of Target and Focus. Health, shields, mana/GP/CP, job/role/gradient/dark colour modes, text templates, smooth health animation. Click to target, right-click menu, `<mo>` mouseover and **mouseover casting** (actions go to the frame under the mouse). Every text has its own content, size, offset and colour; power bar above or below; own background; optional job icon portrait. |
 | **Party Frames** | Same order as the game's party list (or by role), cross-world and trust parties, job icons, range fading, target highlight. Trackers for raises, invulnerabilities, cleansable debuffs and ready checks, plus debuff icons per member. |
-| **Job Gauges** | Every combat job (21 jobs): resources (Beast Gauge, Kenki, Soul Voice...), stacks (cartridges, lilies, feathers...), coloured pips (Sen, Beast Chakra, dance steps, cards...), and timers for key buffs, procs and DoTs. Each bar can be turned off or recoloured. |
-| **Cooldown Manager** | Your own cooldowns as icon bars with a cooldown swipe, timer and charges: a Cooldowns bar (job abilities on 30s+ recasts), a Utility bar (role actions) and a Buffs bar (buffs you put on yourself). Filled automatically per job from the game's data; pick your own actions per job. |
+| **Job Gauges** | Every combat job (21 jobs): resources (Beast Gauge, Kenki, Soul Voice...), stacks (cartridges, lilies, feathers...), coloured pips (Sen, Beast Chakra, dance steps, cards...), and timers for key buffs, procs and DoTs. Each bar can be turned off, recoloured, or detached to move and size it on its own. |
+| **Cooldown Manager** | Your own cooldowns as icon bars with a cooldown swipe, timer and charges: a Cooldowns bar (job abilities on 30s+ recasts), a Utility bar (role actions) and a Buffs bar (buffs you put on yourself, optionally only the ones you track per job). Filled automatically per job from the game's data; pick your own actions per job. |
 | **Cast Bars** | Player, Target and Focus, with spell icon, name, timer, interruptible colour and the player's slidecast window. |
-| **Auras** | Player buffs, player debuffs and target auras as icon grids with timers, tooltips, "only mine" and sort options. Optional right-click to remove a buff. |
+| **Auras** | Player buffs, player debuffs and target auras as icon grids with timers, tooltips, "only mine" and sort options, borders, timer position and size, and hide/only-show lists. Optional right-click to remove a buff. |
 | **Party Cooldowns** | Raid buffs, party mitigation, big heals and tank invulnerabilities used by your party, shown as active / cooling down / ready. |
 | **Enemy List** | The game's enemy list as frames, with casts and a marker on enemies attacking you. Click to target. |
 | **Nameplates** | Health bars, names, levels and cast bars above enemies (optionally players and friendly NPCs). Off by default. |
@@ -36,10 +36,10 @@ Core systems, following EllesmereUI's ideas:
 In WoW, export your profile from EllesmereUI (a normal profile export or a full-account export both work) and copy the string; it starts with `!EUI_`. In game, open `/lucent` → **Profiles** and press **Import EllesmereUI profile from clipboard**. The new profile is selected straight away.
 
 Converted:
-- **Unit frames**: player, target, target of target and focus sizes, positions, power bars, text, class colours, dark theme, reversed fill.
-- **Cast bars**: the Resource Bars cast bar (or the unit frame one if you use that), target and focus cast bars, with sizes, positions and colour.
-- **Resource Bars**: the power / class resource bar becomes the job gauge (width, height, position); the GCD bar too.
-- **Cooldown Manager**: the Cooldowns, Utility and Buffs bars' icon size, rows, spacing, position and alignment. WoW spells cannot carry over, so the bars fill with your FFXIV job's own cooldowns.
+- **Unit frames**: player, target, target of target and focus sizes, positions, power bars (above/below), text content, text size, offset and class colour, backgrounds, class colours, dark theme, reversed fill.
+- **Cast bars**: the Resource Bars cast bar (or the unit frame one if you use that), target and focus cast bars, with sizes, positions, colours, background, icon side and text sizes.
+- **Resource Bars**: the power bar becomes each job's main resource bar (mana for healers and casters) and the class resource bar each job's stacks, as detached job gauge bars with EllesmereUI's size and position; the GCD bar too.
+- **Cooldown Manager**: the Cooldowns, Utility and Buffs bars' icon size, rows, spacing, position and alignment, including bars attached to the player frame or a resource bar. WoW spells cannot carry over, so the bars fill with your FFXIV job's own cooldowns.
 - **Party frames**: size, spacing, sorting, direction, position, show when solo, hide yourself.
 - **Links**: elements anchored to other elements and matched widths in EllesmereUI's Unlock Mode.
 - Accent colour and text outline. Anything an export leaves out uses EllesmereUI's own default, and sizes and positions are scaled from your WoW UI scale to your screen.
