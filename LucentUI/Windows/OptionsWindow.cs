@@ -144,6 +144,7 @@ public sealed partial class OptionsWindow : Window
             "cdm.cooldowns" => (Page.CooldownManager, "cdm", 0),
             "cdm.utility" => (Page.CooldownManager, "cdm", 1),
             "cdm.buffs" => (Page.CooldownManager, "cdm", 2),
+            _ when elementId.StartsWith("cdm.custom", StringComparison.Ordinal) && int.TryParse(elementId["cdm.custom".Length..], out var n) => OpenCustomBar(n - 1),
             "partycooldowns" => (Page.PartyCooldowns, null, 0),
             "enemylist" => (Page.EnemyList, null, 0),
             "nameplates" => (Page.Nameplates, null, 0),
@@ -155,6 +156,12 @@ public sealed partial class OptionsWindow : Window
         {
             Ui.OpenTab(tabId, tab);
         }
+    }
+
+    private static (Page, string?, int) OpenCustomBar(int index)
+    {
+        Ui.OpenTab("cdmcustom", index);
+        return (Page.CooldownManager, "cdm", 3);
     }
 
     public void Open(bool general = false)
@@ -665,6 +672,10 @@ public sealed partial class OptionsWindow : Window
             Ui.Slider("Spacing", ref s.Spacing, 0, 30);
             Ui.Toggle("Horizontal", ref s.Horizontal);
             Ui.Enum("Sort by", ref s.Sort);
+            if (s.Sort == PartySortMode.Role)
+            {
+                Ui.Enum("Role order", ref s.RoleOrder);
+            }
             Ui.Toggle("Include yourself", ref s.IncludePlayer);
             Ui.Toggle("Show when solo", ref s.ShowWhenSolo);
             Ui.Toggle("Clickable", ref s.Interactive);

@@ -136,7 +136,7 @@ public sealed partial class OptionsWindow
     {
         Ui.PageHeader("Cooldown Manager", "Your own cooldowns as icon bars with a timer, like EllesmereUI's Cooldown Manager.");
         ModuleSwitch("Cooldown manager", ref Plugin.Profiles.Current.Modules.CooldownManager);
-        var tab = Ui.Tabs("cdm", "Cooldowns", "Utility", "Buffs", "Buff Filter", "Actions");
+        var tab = Ui.Tabs("cdm", "Cooldowns", "Utility", "Buffs", "Custom Bars", "Buff Filter", "Actions");
         var defaults = new Profile().CooldownManager;
         var bars = new[]
         {
@@ -157,13 +157,146 @@ public sealed partial class OptionsWindow
 
         if (Ui.Tab(tab, 3))
         {
-            DrawBuffFilter(s);
+            DrawCustomBars(s);
         }
 
         if (Ui.Tab(tab, 4))
         {
+            DrawBuffFilter(s);
+        }
+
+        if (Ui.Tab(tab, 5))
+        {
             DrawJobActions(s);
         }
+    }
+
+    private static string customActionSearch = string.Empty;
+    private static string customItemSearch = string.Empty;
+    private static bool customItemHq = true;
+
+    /// <summary>Extra bars with chosen actions and items (potions, food), like EllesmereUI's custom bars.</summary>
+    private static void DrawCustomBars(CooldownManagerSettings s)
+    {
+        var bars = s.CustomBars;
+        Ui.Card("Custom Bars", $"Bars with the actions and items you pick, e.g. potions or a few defensives next to your frame. Up to {CooldownManagerSettings.MaxCustomBars} bars; each is moved in Unlock Mode like any other element.");
+        if (bars.Count < CooldownManagerSettings.MaxCustomBars && Ui.Button("New bar", "Add a custom bar"))
+        {
+            bars.Add(new CustomCooldownBar { Name = $"Custom Bar {bars.Count + 1}" });
+            Ui.OpenTab("cdmcustom", bars.Count - 1);
+            Plugin.MarkDirty();
+        }
+
+        if (bars.Count == 0)
+        {
+            Ui.EndCard();
+            return;
+        }
+
+        var tab = Ui.Tabs("cdmcustom", bars.Select((b, i) => string.IsNullOrWhiteSpace(b.Name) ? $"Bar {i + 1}" : b.Name).ToArray());
+        for (var i = 0; i < bars.Count; i++)
+        {
+            if (!Ui.Tab(tab, i))
+            {
+                continue;
+            }
+
+            var bar = bars[i];
+            ImGui.PushID("custombar" + i);
+            Ui.Card(bar.Name.Length > 0 ? bar.Name : $"Bar {i + 1}");
+            Ui.Text("Name", ref bar.Name);
+            Ui.Toggle("Hide items you have none of", ref bar.HideMissingItems);
+            var ctrl = ImGui.GetIO().KeyCtrl;
+            if (Ui.Button("Delete", ctrl ? "Delete this bar" : "Hold Ctrl to delete") && ctrl)
+            {
+                DeleteCustomBar(s, i);
+                ImGui.PopID();
+                return;
+            }
+
+            DrawCooldownBar("Bar Layout", bar.Bar, "Size, rows and look of this bar.");
+            DrawCustomEntries(bar);
+            ImGui.PopID();
+        }
+    }
+
+    private static void DrawCustomEntries(CustomCooldownBar bar)
+    {
+        var player = Svc.ObjectTable.LocalPlayer;
+        var job = player?.ClassJob.RowId ?? 0;
+        var abbreviation = job != 0 ? Jobs.Get(job).Abbreviation : "?";
+
+        Ui.Card("Icons", "Actions show on the job they were added on; items on every job.");
+        var actionSheet = Svc.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
+        var itemSheet = Svc.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Item>();
+        foreach (var entry in bar.Entries.ToList())
+        {
+            var name = entry.Kind == CooldownEntryKind.Item
+                ? (itemSheet.GetRowOrDefault(entry.Id)?.Name.ExtractText() ?? $"Item {entry.Id}") + (entry.HighQuality ? " (HQ)" : string.Empty)
+                : actionSheet.GetRowOrDefault(entry.Id)?.Name.ExtractText() ?? $"Action {entry.Id}";
+            var where = entry.Job == 0 ? "all jobs" : Jobs.Get(entry.Job).Abbreviation;
+            if (Ui.Button($"{name} ({where})##{entry.Kind}{entry.Id}{entry.Job}", "Remove"))
+            {
+                bar.Entries.Remove(entry);
+                Plugin.MarkDirty();
+            }
+        }
+
+        if (player == null)
+        {
+            Ui.Card("Add Actions", "Log in to add your job's actions.");
+        }
+        else
+        {
+            Ui.Card($"Add {abbreviation} Actions", "Type part of an action's name.");
+            Ui.Text("Find an action", ref customActionSearch, hint: "e.g. Rampart");
+            if (customActionSearch.Trim().Length >= 2)
+            {
+                foreach (var action in JobActions.AllForJob(job).Where(a => a.Name.Contains(customActionSearch.Trim(), System.StringComparison.OrdinalIgnoreCase)).Take(15))
+                {
+                    var exists = bar.Entries.Any(e => e.Kind == CooldownEntryKind.Action && e.Id == action.Id && (e.Job == 0 || e.Job == job));
+                    if (!exists && Ui.Button($"{action.Name} (Lv {action.Level}, {action.Recast:0.#}s)##add{action.Id}", "Add"))
+                    {
+                        bar.Entries.Add(new CustomCooldownEntry { Kind = CooldownEntryKind.Action, Id = action.Id, Job = job });
+                        Plugin.MarkDirty();
+                    }
+                }
+            }
+        }
+
+        Ui.Card("Add Items", "Potions, food and other items with a use. Shows how many you have.");
+        Ui.Toggle("High quality", ref customItemHq, "Track the HQ version of the item.");
+        Ui.Text("Find an item", ref customItemSearch, "Type at least 3 letters.", "e.g. Grade 2 Gemdraught");
+        foreach (var (id, name, _) in JobActions.SearchItems(customItemSearch))
+        {
+            if (Ui.Button($"{name}##item{id}", "Add"))
+            {
+                bar.Entries.Add(new CustomCooldownEntry { Kind = CooldownEntryKind.Item, Id = id, HighQuality = customItemHq });
+                Plugin.MarkDirty();
+            }
+        }
+    }
+
+    /// <summary>Removes a custom bar and moves the positions of the bars after it down one slot.</summary>
+    private static void DeleteCustomBar(CooldownManagerSettings s, int index)
+    {
+        var positions = Plugin.Profiles.Current.Layout.Positions;
+        s.CustomBars.RemoveAt(index);
+        for (var i = index; i < CooldownManagerSettings.MaxCustomBars; i++)
+        {
+            var next = CooldownBarElement.CustomId(i + 1);
+            if (positions.TryGetValue(next, out var pos))
+            {
+                positions[CooldownBarElement.CustomId(i)] = pos;
+            }
+            else
+            {
+                positions.Remove(CooldownBarElement.CustomId(i));
+            }
+        }
+
+        positions.Remove(CooldownBarElement.CustomId(CooldownManagerSettings.MaxCustomBars));
+        Plugin.MarkDirty();
     }
 
     private static void DrawBuffFilter(CooldownManagerSettings s)

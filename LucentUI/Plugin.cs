@@ -110,6 +110,8 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnDraw()
     {
+        // Before anything draws this frame: textures replaced by a media rescan can be freed now.
+        Media.BeginFrame();
         hud.Draw();
         windows.Draw();
     }

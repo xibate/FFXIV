@@ -78,6 +78,65 @@ public static class JobActions
         return list;
     }
 
+    private static readonly Dictionary<uint, List<ActionInfo>> AllCache = new();
+    private static List<(uint Id, string Name, uint Icon)>? usableItems;
+
+    /// <summary>Every action a job can use (any recast), its role actions and Sprint, sorted by level.</summary>
+    public static IReadOnlyList<ActionInfo> AllForJob(uint jobId)
+    {
+        if (AllCache.TryGetValue(jobId, out var cached))
+        {
+            return cached;
+        }
+
+        var list = new List<ActionInfo>();
+        var parent = Svc.DataManager.GetExcelSheet<ClassJob>().GetRowOrDefault(jobId)?.ClassJobParent.RowId ?? 0;
+        var actions = Svc.DataManager.GetExcelSheet<Action>();
+        foreach (var row in actions)
+        {
+            var owner = row.ClassJob.RowId;
+            if (!row.IsPlayerAction || row.IsPvP || row.Icon == 0 || row.Name.IsEmpty || owner == 0 || (owner != jobId && owner != parent))
+            {
+                continue;
+            }
+
+            list.Add(new ActionInfo(row.RowId, row.Name.ExtractText(), row.Icon, row.ClassJobLevel, row.Recast100ms / 10f, false));
+        }
+
+        var extra = new List<uint> { 3 }; // Sprint
+        if (RoleActions.TryGetValue(Jobs.Get(jobId).Role, out var roleIds))
+        {
+            extra.AddRange(roleIds);
+        }
+
+        foreach (var id in extra)
+        {
+            if (actions.GetRowOrDefault(id) is { } row && row.Icon != 0)
+            {
+                list.Add(new ActionInfo(id, row.Name.ExtractText(), row.Icon, row.ClassJobLevel, row.Recast100ms / 10f, id != 3));
+            }
+        }
+
+        list = list.OrderBy(a => a.Level).ThenBy(a => a.Name).ToList();
+        AllCache[jobId] = list;
+        return list;
+    }
+
+    /// <summary>Items with a use effect (potions, food, ...) whose name contains <paramref name="search"/>.</summary>
+    public static IEnumerable<(uint Id, string Name, uint Icon)> SearchItems(string search, int max = 15)
+    {
+        if (search.Trim().Length < 3)
+        {
+            return Enumerable.Empty<(uint, string, uint)>();
+        }
+
+        usableItems ??= Svc.DataManager.GetExcelSheet<Item>()
+            .Where(i => i.ItemAction.RowId != 0 && !i.Name.IsEmpty && i.Icon != 0)
+            .Select(i => (i.RowId, i.Name.ExtractText(), (uint)i.Icon))
+            .ToList();
+        return usableItems.Where(i => i.Name.Contains(search.Trim(), System.StringComparison.OrdinalIgnoreCase)).Take(max);
+    }
+
     /// <summary>The actions shown for a job on the Cooldowns and Utility bars.</summary>
     public static (IReadOnlyList<uint> Cooldowns, IReadOnlyList<uint> Utility) Selection(CooldownManagerSettings settings, uint jobId)
     {

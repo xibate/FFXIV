@@ -882,7 +882,8 @@ public static class EllesmereImport
 
             // Go below anything else that would be in the way (cooldown icons are often right under the bars).
             var height = P.JobGauge.BarHeight * 3 + P.JobGauge.Spacing * 2;
-            var others = placed.Values.Where(p => p.TopLeft != null && !bars.Contains(p) && p.Id.Length > 0).ToList();
+            // Custom cooldown bars start empty (WoW spells do not carry over), so they do not count.
+            var others = placed.Values.Where(p => p.TopLeft != null && !bars.Contains(p) && p.Id.Length > 0 && !p.Id.StartsWith("cdm.custom", StringComparison.Ordinal)).ToList();
             for (var moved = true; moved;)
             {
                 moved = false;
@@ -914,9 +915,14 @@ public static class EllesmereImport
             var positions = Table(Get(cdm, "cdmBarPositions"));
             var list = Table(Get(bars, "bars"));
             var found = new HashSet<string>();
-            var custom = 0;
+            var skipped = 0;
+            var customBars = new List<string>();
+            var ordered = (list ?? new Dictionary<object, object?>())
+                .OrderBy(kv => kv.Key is double d ? d : double.MaxValue)
+                .Select(kv => kv.Value)
+                .OfType<Dictionary<object, object?>>();
 
-            foreach (var entry in list?.Values.OfType<Dictionary<object, object?>>() ?? Enumerable.Empty<Dictionary<object, object?>>())
+            foreach (var entry in ordered)
             {
                 var key = Str(Get(entry, "key")) ?? string.Empty;
                 var settings = key switch
@@ -929,7 +935,21 @@ public static class EllesmereImport
 
                 if (settings == null)
                 {
-                    custom++;
+                    // The user's own bars become LucentUI custom bars (layout only: WoW spells cannot carry over).
+                    if (key.StartsWith("custom_", StringComparison.Ordinal) && Bool(Get(entry, "isGhostBar")) != true &&
+                        P.CooldownManager.CustomBars.Count < CooldownManagerSettings.MaxCustomBars)
+                    {
+                        var customBar = new CustomCooldownBar { Name = Str(Get(entry, "name")) ?? $"Custom Bar {P.CooldownManager.CustomBars.Count + 1}" };
+                        var slot = P.CooldownManager.CustomBars.Count;
+                        P.CooldownManager.CustomBars.Add(customBar);
+                        ApplyCooldownBar(customBar.Bar, entry, Table(Get(positions, key)), key, Hud.Elements.CooldownBarElement.CustomId(slot));
+                        customBars.Add(customBar.Name);
+                    }
+                    else
+                    {
+                        skipped++;
+                    }
+
                     continue;
                 }
 
@@ -949,13 +969,18 @@ public static class EllesmereImport
 
             P.Modules.CooldownManager = true;
             converted.Add("cooldown manager bars");
-            if (custom > 0)
+            if (customBars.Count > 0)
             {
-                result.Notes.Add($"{custom} extra cooldown bar(s) were skipped; LucentUI has Cooldowns, Utility and Buffs bars.");
+                result.Notes.Add($"Custom cooldown bars kept with their size and position: {string.Join(", ", customBars)}. Add your FFXIV actions or potions to them under Cooldown Manager > Custom Bars.");
+            }
+
+            if (skipped > 0)
+            {
+                result.Notes.Add($"{skipped} WoW-only cooldown bar(s) were skipped (e.g. hidden or interrupt bars).");
             }
         }
 
-        private void ApplyCooldownBar(CooldownBarSettings s, Dictionary<object, object?> bar, Dictionary<object, object?>? position, string key)
+        private void ApplyCooldownBar(CooldownBarSettings s, Dictionary<object, object?> bar, Dictionary<object, object?>? position, string key, string? elementId = null)
         {
             var defaultSize = key switch
             {
@@ -1011,7 +1036,7 @@ public static class EllesmereImport
                 "utility" => -320,
                 _ => -365,
             };
-            Place("CDM_" + key, "cdm." + key, size, Position(position, size) ?? FromCentre(0, defaultY, size), null);
+            Place("CDM_" + key, elementId ?? "cdm." + key, size, Position(position, size) ?? FromCentre(0, defaultY, size), null);
             placed["CDM_" + key].GrowDirection = grow is "LEFT" or "RIGHT" or "UP" or "DOWN" ? grow : null;
 
             // A bar can also be attached to the player frame or a resource bar from its own settings.
@@ -1144,6 +1169,21 @@ public static class EllesmereImport
             s.Spacing = Math.Max(0, (int)MathF.Round((float)(Num(Get(raid, "partyCellSpacing")) ?? Num(Get(raid, "cellSpacing")) ?? -1) * scale) + 1);
             s.Sort = (Str(Get(raid, "partySortMode")) ?? Str(Get(raid, "sortMode")) ?? "ROLE") == "ROLE" ? PartySortMode.Role : PartySortMode.Game;
             s.Horizontal = Bool(Get(raid, "partyHorizontal")) ?? false;
+
+            // Role order, e.g. { "TANK", "DAMAGER", "HEALER" }.
+            var roles = Table(Get(raid, "partyRoleOrder")) ?? Table(Get(raid, "roleOrder"));
+            var order = string.Concat((roles ?? new Dictionary<object, object?>())
+                .OrderBy(kv => kv.Key is double d ? d : double.MaxValue)
+                .Select(kv => (Str(kv.Value) ?? string.Empty) switch { "TANK" => "T", "HEALER" => "H", "DAMAGER" => "D", _ => string.Empty }));
+            s.RoleOrder = order switch
+            {
+                "TDH" => PartyRoleOrder.TankDpsHealer,
+                "HTD" => PartyRoleOrder.HealerTankDps,
+                "HDT" => PartyRoleOrder.HealerDpsTank,
+                "DTH" => PartyRoleOrder.DpsTankHealer,
+                "DHT" => PartyRoleOrder.DpsHealerTank,
+                _ => PartyRoleOrder.TankHealerDps,
+            };
             s.ShowWhenSolo = Bool(Get(raid, "partyShowWhenSolo")) ?? Bool(Get(raid, "showWhenSolo")) ?? false;
             s.IncludePlayer = !(Bool(Get(raid, "partyHideSelf")) ?? false);
             s.Texture = TextureName(PartyValue("healthBarTexture"));

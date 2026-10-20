@@ -32,6 +32,7 @@ public sealed class MediaLibrary : IDisposable
     private Dictionary<string, string> textures = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextureSlot> loaded = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? scan;
+    private readonly List<IDalamudTextureWrap> retired = new();
 
     private sealed class TextureSlot
     {
@@ -122,9 +123,13 @@ public sealed class MediaLibrary : IDisposable
                 textures = newTextures;
                 FontNames = newFonts.Keys.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
                 TextureNames = newTextures.Keys.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
+                // The old textures may still be drawn this frame; free them at the start of the next one.
                 foreach (var slot in loaded.Values)
                 {
-                    slot.Wrap?.Dispose();
+                    if (slot.Wrap != null)
+                    {
+                        retired.Add(slot.Wrap);
+                    }
                 }
 
                 loaded.Clear();
@@ -302,6 +307,20 @@ public sealed class MediaLibrary : IDisposable
         return null;
     }
 
+    /// <summary>Call at the start of a frame, before anything draws: frees textures replaced by a rescan.</summary>
+    public void BeginFrame()
+    {
+        lock (gate)
+        {
+            foreach (var wrap in retired)
+            {
+                wrap.Dispose();
+            }
+
+            retired.Clear();
+        }
+    }
+
     /// <summary>The texture for a name, or null while it loads, if unknown, or if it cannot be read.</summary>
     public IDalamudTextureWrap? Texture(string? name)
     {
@@ -374,6 +393,12 @@ public sealed class MediaLibrary : IDisposable
                 slot.Wrap?.Dispose();
             }
 
+            foreach (var wrap in retired)
+            {
+                wrap.Dispose();
+            }
+
+            retired.Clear();
             loaded.Clear();
         }
     }

@@ -64,7 +64,7 @@ public sealed class PartyFramesElement : HudElement
 
         if (s.Sort == PartySortMode.Role)
         {
-            members.Sort(CompareByRole);
+            members.Sort((a, b) => CompareByRole(s.RoleOrder, a, b));
         }
 
         var readyCheck = s.ShowReadyCheck ? ReadyCheck() : null;
@@ -307,9 +307,41 @@ public sealed class PartyFramesElement : HudElement
         }
     }
 
-    private static int CompareByRole(PartyMemberData a, PartyMemberData b)
+    private static int CompareByRole(PartyRoleOrder order, PartyMemberData a, PartyMemberData b)
     {
+        var byGroup = GroupRank(order, Jobs.Get(a.Unit.JobId).Role).CompareTo(GroupRank(order, Jobs.Get(b.Unit.JobId).Role));
+        if (byGroup != 0)
+        {
+            return byGroup;
+        }
+
+        // Within a group: melee, ranged, casters, then by name.
         var byRole = Jobs.RoleSortOrder(Jobs.Get(a.Unit.JobId).Role).CompareTo(Jobs.RoleSortOrder(Jobs.Get(b.Unit.JobId).Role));
         return byRole != 0 ? byRole : string.Compare(a.Unit.Name, b.Unit.Name, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Where a role's group (tank, healer or DPS) comes in the chosen order.</summary>
+    private static int GroupRank(PartyRoleOrder order, JobRole role)
+    {
+        var group = role switch
+        {
+            JobRole.Tank => 'T',
+            JobRole.Healer => 'H',
+            JobRole.Melee or JobRole.Ranged or JobRole.Caster => 'D',
+            _ => 'X',
+        };
+
+        var sequence = order switch
+        {
+            PartyRoleOrder.TankDpsHealer => "TDH",
+            PartyRoleOrder.HealerTankDps => "HTD",
+            PartyRoleOrder.HealerDpsTank => "HDT",
+            PartyRoleOrder.DpsTankHealer => "DTH",
+            PartyRoleOrder.DpsHealerTank => "DHT",
+            _ => "THD",
+        };
+
+        var index = sequence.IndexOf(group);
+        return index < 0 ? 3 : index;
     }
 }

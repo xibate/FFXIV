@@ -291,6 +291,7 @@ public sealed class PartySettings
     public bool ShowWhenSolo = false;
     public bool IncludePlayer = true;
     public PartySortMode Sort = PartySortMode.Game;
+    public PartyRoleOrder RoleOrder = PartyRoleOrder.TankHealerDps;
     public bool ShowPower = true;
     public int PowerHeight = 4;
     public string LeftText = "{name:14}";
@@ -390,8 +391,43 @@ public sealed class JobCooldownSelection
     public List<uint> Utility = new();
 }
 
+public enum CooldownEntryKind
+{
+    Action,
+    Item,
+}
+
+/// <summary>One icon on a custom cooldown bar: an action (for one job, or every job) or an item such as a potion.</summary>
+public sealed class CustomCooldownEntry
+{
+    public CooldownEntryKind Kind = CooldownEntryKind.Action;
+    public uint Id;
+
+    /// <summary>ClassJob the entry shows on; 0 shows it on every job.</summary>
+    public uint Job;
+
+    /// <summary>For items: use the high-quality version.</summary>
+    public bool HighQuality;
+}
+
+/// <summary>A cooldown bar with icons the user picks, like EllesmereUI's custom Cooldown Manager bars.</summary>
+public sealed class CustomCooldownBar
+{
+    public string Name = "Custom Bar";
+    public CooldownBarSettings Bar = new() { IconSize = 36f, MaxIcons = 6 };
+    public List<CustomCooldownEntry> Entries = new();
+
+    /// <summary>Hide items you have none of (instead of showing them dimmed).</summary>
+    public bool HideMissingItems = false;
+}
+
 public sealed class CooldownManagerSettings
 {
+    /// <summary>Extra bars with chosen actions and items (up to <see cref="MaxCustomBars"/>).</summary>
+    public List<CustomCooldownBar> CustomBars = new();
+
+    public const int MaxCustomBars = 8;
+
     public CooldownBarSettings Cooldowns = new();
     public CooldownBarSettings Utility = new() { IconSize = 36f, MaxIcons = 8 };
     public CooldownBarSettings Buffs = new() { IconSize = 32f, MaxIcons = 8, ShowBackground = false };
@@ -435,6 +471,17 @@ public enum GameNameplateMode
 
     /// <summary>Hide the game's nameplate window completely.</summary>
     HideAll,
+}
+
+/// <summary>The order of the role groups when party frames are sorted by role.</summary>
+public enum PartyRoleOrder
+{
+    TankHealerDps,
+    TankDpsHealer,
+    HealerTankDps,
+    HealerDpsTank,
+    DpsTankHealer,
+    DpsHealerTank,
 }
 
 public enum PlateMode
