@@ -777,6 +777,7 @@ public sealed partial class OptionsWindow : Window
             Ui.Slider("Space between parties", ref s.GroupSpacing, 0, 60);
             Ui.Toggle("Parties side by side", ref s.SideBySide, "Off puts one party above the other.");
             Ui.Toggle("Members in a row", ref s.HorizontalMembers, "Each party's members side by side instead of in a column.");
+            Ui.Slider(s.HorizontalMembers ? "Members per row" : "Members per column", ref s.MembersPerRow, 1, 8, "After this many, members wrap to a new line, e.g. 4 gives two lines of 4.");
             Ui.MediaPicker("Bar texture", ref s.Texture, false, "Profile texture", "Empty uses the texture from the Style page.");
             Ui.Enum("Health colour", ref s.ColorMode);
             Ui.Toggle("Job icon", ref s.ShowJobIcon);

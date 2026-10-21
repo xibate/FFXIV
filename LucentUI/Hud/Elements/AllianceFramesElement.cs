@@ -40,9 +40,31 @@ public sealed unsafe class AllianceFramesElement : HudElement
             : new Vector2(group.X, group.Y * Groups + s.GroupSpacing);
     }
 
-    private static Vector2 GroupSize(AllianceSettings s) => s.HorizontalMembers
-        ? new(PerGroup * s.Size.X + (PerGroup - 1) * s.Spacing, s.Size.Y)
-        : new(s.Size.X, PerGroup * s.Size.Y + (PerGroup - 1) * s.Spacing);
+    /// <summary>Members per line (row, or column when stacked) and how many lines a party needs.</summary>
+    private static (int PerLine, int Lines) Lines(AllianceSettings s)
+    {
+        var perLine = Math.Clamp(s.MembersPerRow, 1, PerGroup);
+        return (perLine, (PerGroup + perLine - 1) / perLine);
+    }
+
+    private static Vector2 GroupSize(AllianceSettings s)
+    {
+        var (perLine, lines) = Lines(s);
+        var across = s.HorizontalMembers ? perLine : lines;
+        var down = s.HorizontalMembers ? lines : perLine;
+        return new Vector2(across * s.Size.X + (across - 1) * s.Spacing, down * s.Size.Y + (down - 1) * s.Spacing);
+    }
+
+    /// <summary>Where member <paramref name="index"/> of a party sits, relative to the party's corner.</summary>
+    private static Vector2 MemberOffset(AllianceSettings s, int index)
+    {
+        var (perLine, _) = Lines(s);
+        var along = index % perLine;
+        var line = index / perLine;
+        var column = s.HorizontalMembers ? along : line;
+        var row = s.HorizontalMembers ? line : along;
+        return new Vector2(column * (s.Size.X + s.Spacing), row * (s.Size.Y + s.Spacing));
+    }
 
     public override void Draw(DrawContext ctx, Vector2 pos)
     {
@@ -61,7 +83,7 @@ public sealed unsafe class AllianceFramesElement : HudElement
             for (var i = 0; i < members.Count; i++)
             {
                 var unit = members[i];
-                var memberPos = groupPos + (s.HorizontalMembers ? new Vector2(i * (s.Size.X + s.Spacing), 0) : new Vector2(0, i * (s.Size.Y + s.Spacing)));
+                var memberPos = groupPos + MemberOffset(s, i);
                 var hovered = !ctx.Preview && s.Interactive && ctx.Input.HandleUnit(memberPos, memberPos + s.Size, unit.Object, ctx.General);
                 var isTarget = target != null && unit.Object != null && target.Address == unit.Object.Address;
 

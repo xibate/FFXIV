@@ -638,6 +638,9 @@ public sealed class AllianceSettings
 
     /// <summary>Put each party's members in a row instead of a column.</summary>
     public bool HorizontalMembers = false;
+
+    /// <summary>Members per row (or per column when members are stacked) before wrapping; 8 is one line.</summary>
+    public int MembersPerRow = 8;
     public string CenterText = string.Empty;
     public TextStyle CenterStyle = new();
 
