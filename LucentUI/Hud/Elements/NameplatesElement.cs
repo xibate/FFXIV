@@ -9,7 +9,6 @@ using Dalamud.Interface.Textures;
 using LucentUI.Config;
 using LucentUI.Data;
 using LucentUI.Style;
-using FFXIVClientStructs.FFXIV.Client.UI;
 using GameFramework = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework;
 using GameObjectStruct = FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject;
 
@@ -86,34 +85,6 @@ public sealed unsafe class NameplatesElement : HudElement
     /// <summary>Plates hide in Unlock Mode, but stay while settings are previewed so changes show on real units.</summary>
     internal static bool UnlockActive;
 
-    private readonly Dictionary<nint, byte> plateSlots = new();
-
-    /// <summary>The bottom centre of the game's own nameplate for a unit, in screen coordinates.</summary>
-    private bool GamePlateAnchor(AddonNamePlate* addon, nint address, Vector2 viewportPos, out Vector2 anchor)
-    {
-        anchor = default;
-        if (addon == null || addon->NamePlateObjectArray == null || !plateSlots.TryGetValue(address, out var slot) || slot >= MaxGamePlates)
-        {
-            return false;
-        }
-
-        var plate = addon->NamePlateObjectArray[slot];
-        var node = plate.RootComponentNode;
-        // Active plates keep their position even when the game hides their text (Hide Replaced).
-        if (node == null)
-        {
-            return false;
-        }
-
-        var res = &node->AtkResNode;
-        var scaleX = res->ScaleX > 0f ? res->ScaleX : 1f;
-        var scaleY = res->ScaleY > 0f ? res->ScaleY : 1f;
-        anchor = viewportPos + new Vector2(res->X + res->Width * scaleX / 2f, res->Y + res->Height * scaleY);
-        return float.IsFinite(anchor.X) && float.IsFinite(anchor.Y);
-    }
-
-    private const int MaxGamePlates = 50;
-
     // Per unit: plate height above its feet, smoothed so head-bob animations do not shake the plate.
     private readonly Dictionary<ulong, float> heights = new();
 
@@ -127,8 +98,7 @@ public sealed unsafe class NameplatesElement : HudElement
 
         listed.Clear();
 
-        // The game's own nameplate list: who has a nameplate, and which of its plate slots shows it.
-        plateSlots.Clear();
+        // The game's own nameplate list: who has a nameplate (line of sight, the game's name settings).
         var uiModule = GameFramework.Instance()->GetUIModule();
         var ui3d = uiModule != null ? uiModule->GetUI3DModule() : null;
         if (ui3d != null)
@@ -140,13 +110,9 @@ public sealed unsafe class NameplatesElement : HudElement
                 if (info != null && info->GameObject != null)
                 {
                     listed.Add((nint)info->GameObject);
-                    plateSlots[(nint)info->GameObject] = info->NamePlateIndex;
                 }
             }
         }
-
-        var addon = (AddonNamePlate*)Svc.GameGui.GetAddonByName("NamePlate", 1).Address;
-        var viewportPos = Dalamud.Bindings.ImGui.ImGui.GetMainViewport().Pos;
 
         // With nothing in the game's list (e.g. its nameplates are turned off), use every unit nearby.
         var useList = s.FollowGameNameplates && listed.Count > 0;
@@ -186,7 +152,17 @@ public sealed unsafe class NameplatesElement : HudElement
             // smoothed, and stand it on the unit's position so names stay still.
             FFXIVClientStructs.FFXIV.Common.Math.Vector3 gameWorld;
             go->GetNamePlateWorldPosition(&gameWorld);
-            var measured = gameWorld.Y - obj.Position.Y;
+            // The model glides between the unit's network positions; follow the model, not the logical position,
+            // so plates move with what is drawn instead of stepping.
+            var feet = go->DrawObject != null
+                ? new Vector3(go->DrawObject->Position.X, go->DrawObject->Position.Y, go->DrawObject->Position.Z)
+                : obj.Position;
+            if (!float.IsFinite(feet.X) || Vector3.Distance(feet, obj.Position) > 10f)
+            {
+                feet = obj.Position;
+            }
+
+            var measured = gameWorld.Y - feet.Y;
             if (!float.IsFinite(measured) || measured < 0f || measured > 30f)
             {
                 measured = go->Height * 2.2f;
@@ -197,19 +173,14 @@ public sealed unsafe class NameplatesElement : HudElement
                 ? previous + (measured - previous) * (1f - MathF.Exp(-Math.Max(0f, deltaTime) / 0.4f))
                 : measured;
             heights[key] = height;
-            var world = new Vector3(obj.Position.X, obj.Position.Y + height, obj.Position.Z);
+            var world = new Vector3(feet.X, feet.Y + height, feet.Z);
 
             // Prefer the spot the game puts its own nameplate: it moves exactly with the character on screen.
             // Units without a game nameplate fall back to projecting their position.
-            if (!Svc.GameGui.WorldToScreen(world, out var projected))
+            if (!Svc.GameGui.WorldToScreen(world, out var screen))
             {
                 continue;
             }
-
-            // A plate slot that is far from the unit is stale (reused); trust the projection then.
-            var screen = GamePlateAnchor(addon, obj.Address, viewportPos, out var anchor) && Vector2.Distance(anchor, projected) < 250f
-                ? anchor
-                : projected;
 
             plates.Add(new Plate { Object = obj, Screen = screen + new Vector2(0, s.YOffset), Distance = distance, Mode = mode, IsTarget = isTarget });
         }
