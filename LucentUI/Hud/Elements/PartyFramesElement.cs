@@ -33,6 +33,8 @@ public sealed class PartyFramesElement : HudElement
     private readonly List<PartyMemberData> members = new(MaxMembers);
     private readonly List<AuraData> debuffs = new();
     private readonly AuraSettings debuffFilter = new() { ShowBuffs = false, ShowDebuffs = true, ShowPermanent = false };
+    private readonly List<AuraData> buffs = new();
+    private readonly AuraSettings buffFilter = new() { ShowBuffs = true, ShowDebuffs = false, ShowPermanent = false, MaxIcons = 30 };
     private double readyCheckSeenAt = -100;
 
     public override string Id => "party";
@@ -166,10 +168,48 @@ public sealed class PartyFramesElement : HudElement
             }
         }
 
+        if (obj != null && s.ShowBuffs && !unit.IsDead)
+        {
+            DrawBuffs(ctx, s, obj, pos, size);
+        }
+
         // Ready check: a tick or a cross at the right edge.
         if (readyCheck != null && readyCheck.TryGetValue(member.ContentId, out var status))
         {
             DrawReadyMark(ctx, status, pos + new Vector2(size.X - size.Y * 0.5f - 6, size.Y * 0.5f), size.Y * 0.32f);
+        }
+    }
+
+    /// <summary>Tracked buffs inside a corner of the member's frame, growing inwards.</summary>
+    private void DrawBuffs(DrawContext ctx, PartySettings s, Dalamud.Game.ClientState.Objects.Types.IGameObject obj, Vector2 pos, Vector2 size)
+    {
+        buffFilter.OnlyMine = s.BuffsOnlyMine;
+        buffFilter.Filter = s.BuffFilter;
+        buffFilter.FilterIds = s.BuffIds;
+        Auras.Collect(obj, buffFilter, buffs);
+        if (buffs.Count == 0)
+        {
+            return;
+        }
+
+        var height = MathF.Round(Math.Clamp(s.BuffIconHeight, 8f, Math.Max(8f, size.Y - 4f)));
+        var width = MathF.Round(height * 0.75f);
+        var right = s.BuffCorner is PartyIconCorner.BottomRight or PartyIconCorner.TopRight;
+        var bottom = s.BuffCorner is PartyIconCorner.BottomRight or PartyIconCorner.BottomLeft;
+        var y = bottom ? pos.Y + size.Y - height - 2 : pos.Y + 2;
+
+        using var font = ctx.Fonts.PushSmall();
+        for (var i = 0; i < buffs.Count && i < s.MaxBuffs; i++)
+        {
+            var x = right ? pos.X + size.X - 2 - (i + 1) * width - i * 2 : pos.X + 2 + i * (width + 2);
+            var iconPos = Gfx.Floor(new Vector2(x, y));
+            var texture = Svc.TextureProvider.GetFromGameIcon(new GameIconLookup(buffs[i].Icon)).GetWrapOrEmpty();
+            ctx.DrawList.AddImage(texture.Handle, iconPos, iconPos + new Vector2(width, height), Vector2.Zero, Vector2.One, ctx.Col(Vector4.One));
+            if (s.BuffTimers && !buffs[i].IsPermanent && buffs[i].Remaining > 0f)
+            {
+                var color = buffs[i].Remaining < 5f ? Colors.Rgb(0xFF6B5E) : Vector4.One;
+                Gfx.Text(ctx, TextTags.Duration(buffs[i].Remaining), iconPos + new Vector2(width / 2f, height - 4), TextAlign.Center, color);
+            }
         }
     }
 

@@ -22,6 +22,7 @@ public sealed partial class OptionsWindow : Window
         TargetOfTarget,
         Focus,
         Party,
+        Alliance,
         CastBars,
         Auras,
         JobGauge,
@@ -39,7 +40,7 @@ public sealed partial class OptionsWindow : Window
     private static readonly (string Group, (Page Page, string Label)[] Items)[] Navigation =
     {
         ("GENERAL", new[] { (Page.General, "General"), (Page.Style, "Style") }),
-        ("FRAMES", new[] { (Page.Player, "Player"), (Page.Target, "Target"), (Page.TargetOfTarget, "Target of Target"), (Page.Focus, "Focus"), (Page.Party, "Party"), (Page.EnemyList, "Enemy List"), (Page.Nameplates, "Nameplates") }),
+        ("FRAMES", new[] { (Page.Player, "Player"), (Page.Target, "Target"), (Page.TargetOfTarget, "Target of Target"), (Page.Focus, "Focus"), (Page.Party, "Party"), (Page.Alliance, "Alliance"), (Page.EnemyList, "Enemy List"), (Page.Nameplates, "Nameplates") }),
         ("COMBAT", new[] { (Page.JobGauge, "Job Gauge"), (Page.CooldownManager, "Cooldown Manager"), (Page.CastBars, "Cast Bars"), (Page.Auras, "Auras"), (Page.PartyCooldowns, "Party Cooldowns"), (Page.Extras, "Extras") }),
         ("SYSTEM", new[] { (Page.Hotbars, "Hotbars"), (Page.DefaultHud, "Default HUD"), (Page.Profiles, "Profiles"), (Page.About, "About") }),
     };
@@ -48,7 +49,7 @@ public sealed partial class OptionsWindow : Window
     private static readonly Page[] SearchablePages =
     {
         Page.General, Page.Style, Page.Player, Page.Target, Page.TargetOfTarget, Page.Focus,
-        Page.Party, Page.EnemyList, Page.Nameplates, Page.JobGauge, Page.CooldownManager, Page.CastBars, Page.Auras,
+        Page.Party, Page.Alliance, Page.EnemyList, Page.Nameplates, Page.JobGauge, Page.CooldownManager, Page.CastBars, Page.Auras,
         Page.PartyCooldowns, Page.Extras, Page.Hotbars, Page.DefaultHud,
     };
 
@@ -135,6 +136,7 @@ public sealed partial class OptionsWindow : Window
             "unit.tot" => (Page.TargetOfTarget, null, 0),
             "unit.focus" => (Page.Focus, null, 0),
             "party" => (Page.Party, null, 0),
+            "alliance" => (Page.Alliance, null, 0),
             "cast.player" => (Page.CastBars, "cast", 0),
             "cast.target" => (Page.CastBars, "cast", 1),
             "cast.focus" => (Page.CastBars, "cast", 2),
@@ -306,6 +308,9 @@ public sealed partial class OptionsWindow : Window
             case Page.Party:
                 DrawParty(profile.Party);
                 break;
+            case Page.Alliance:
+                DrawAlliance(profile.Alliance);
+                break;
             case Page.CastBars:
                 DrawCastBars(profile);
                 break;
@@ -362,6 +367,7 @@ public sealed partial class OptionsWindow : Window
         Ui.Toggle("Cast Bars", ref profile.Modules.CastBars);
         Ui.Toggle("Auras", ref profile.Modules.Auras);
         Ui.Toggle("Party Frames", ref profile.Modules.PartyFrames);
+        Ui.Toggle("Alliance Frames", ref profile.Modules.Alliance, "The two other parties in 24-player alliance raids.");
         Ui.Toggle("Job Gauges", ref profile.Modules.JobGauges);
         Ui.Toggle("Cooldown Manager", ref profile.Modules.CooldownManager, "Your own cooldowns and buffs as icon bars.");
         Ui.Toggle("Party Cooldowns", ref profile.Modules.PartyCooldowns);
@@ -662,7 +668,7 @@ public sealed partial class OptionsWindow : Window
         Ui.PageHeader("Party", "Party frames with role sorting and range fading.");
         ModuleSwitch("Party frames", ref Plugin.Profiles.Current.Modules.PartyFrames);
         CopyAndReset("party", s, () => new Profile().Party);
-        var tab = Ui.Tabs("party", "Layout", "Health", "Text", "Trackers", "Visibility");
+        var tab = Ui.Tabs("party", "Layout", "Health", "Text", "Trackers", "Buffs", "Visibility");
 
         if (Ui.Tab(tab, 0))
         {
@@ -717,7 +723,60 @@ public sealed partial class OptionsWindow : Window
 
         if (Ui.Tab(tab, 4))
         {
+            Ui.Card("Party Buffs", "Buff icons inside each member's frame, like EllesmereUI's raid frame indicators.");
+            Ui.Toggle("Show buffs", ref s.ShowBuffs);
+            Ui.Toggle("Only mine", ref s.BuffsOnlyMine, "Only buffs you put on them: your regens, shields, mitigation...");
+            Ui.Enum("Corner", ref s.BuffCorner);
+            Ui.Slider("Buffs per member", ref s.MaxBuffs, 1, 10);
+            Ui.Slider("Icon height", ref s.BuffIconHeight, 8f, 48f, "%.0f");
+            Ui.Toggle("Timers", ref s.BuffTimers);
+            Ui.Enum("Filter", ref s.BuffFilter, "Track only listed buffs (e.g. Regen, Galvanize, Kerachole), or hide listed ones.");
+            if (s.BuffFilter != ListFilter.None)
+            {
+                var source = Svc.TargetManager.Target ?? Svc.ObjectTable.LocalPlayer;
+                StatusListEditor("Party Buff List", s.BuffIds, source, false,
+                    (s.BuffFilter == ListFilter.OnlyListed ? "Only these buffs are shown. " : "These buffs are hidden. ") +
+                    "Target a party member to add buffs that are on them right now.");
+            }
+        }
+
+        if (Ui.Tab(tab, 5))
+        {
             DrawVisibility("Party", s.Visibility);
+        }
+    }
+
+    private static void DrawAlliance(AllianceSettings s)
+    {
+        Ui.PageHeader("Alliance", "The two other parties in 24-player alliance raids. Shows only in an alliance.");
+        ModuleSwitch("Alliance frames", ref Plugin.Profiles.Current.Modules.Alliance);
+        CopyAndReset("alliance", s, () => new Profile().Alliance);
+        var tab = Ui.Tabs("alliance", "Layout", "Text", "Visibility");
+
+        if (Ui.Tab(tab, 0))
+        {
+            Ui.Card("Alliance Frames");
+            Ui.Toggle("Enabled", ref s.Enabled);
+            Ui.Size("Member size", ref s.Size);
+            Ui.Slider("Spacing", ref s.Spacing, 0, 20);
+            Ui.Slider("Space between parties", ref s.GroupSpacing, 0, 60);
+            Ui.Toggle("Parties side by side", ref s.SideBySide, "Off puts one party above the other.");
+            Ui.MediaPicker("Bar texture", ref s.Texture, false, "Profile texture", "Empty uses the texture from the Style page.");
+            Ui.Enum("Health colour", ref s.ColorMode);
+            Ui.Toggle("Job icon", ref s.ShowJobIcon);
+            Ui.Toggle("Fade out of range", ref s.RangeFade, "Members further than 40 yalms fade out.");
+            Ui.Toggle("Clickable", ref s.Interactive, "Click to target (when they are near), mouseover and mouseover casting.");
+        }
+
+        if (Ui.Tab(tab, 1))
+        {
+            DrawTextSlot("Alliance Left Text", ref s.LeftText, s.LeftStyle);
+            DrawTextSlot("Alliance Right Text", ref s.RightText, s.RightStyle);
+        }
+
+        if (Ui.Tab(tab, 2))
+        {
+            DrawVisibility("Alliance", s.Visibility);
         }
     }
 
@@ -848,6 +907,7 @@ public sealed partial class OptionsWindow : Window
         Ui.Toggle("Limit break", ref s.HideLimitBreak);
         Ui.Toggle("Experience bar", ref s.HideExp);
         Ui.Toggle("Countdown", ref s.HidePullTimer);
+        Ui.Toggle("Alliance lists", ref s.HideAlliance);
     }
 
     // ── Profiles ─────────────────────────────────────────────────────────────

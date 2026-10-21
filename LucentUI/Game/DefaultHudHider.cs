@@ -26,6 +26,7 @@ public sealed unsafe class DefaultHudHider : IDisposable
     private static readonly string[] LimitBreakAddons = { "_LimitBreak" };
     private static readonly string[] ExpAddons = { "_Exp" };
     private static readonly string[] PullTimerAddons = { "ScreenInfo_CountDown" };
+    private static readonly string[] AllianceAddons = { "_AllianceList1", "_AllianceList2" };
     private static readonly string[] NameplateAddons = { "NamePlate" };
 
     /// <summary>Hotbar number (1-10, 11 = cross hotbar) → its addons.</summary>
@@ -72,6 +73,7 @@ public sealed unsafe class DefaultHudHider : IDisposable
             AddIf(hud.HideLimitBreak && modules.Extras && profile.LimitBreak.Enabled, LimitBreakAddons);
             AddIf(hud.HideExp && modules.Extras && profile.Experience.Enabled, ExpAddons);
             AddIf(hud.HidePullTimer && modules.Extras && profile.PullTimer.Enabled, PullTimerAddons);
+            AddIf(hud.HideAlliance && modules.Alliance && profile.Alliance.Enabled, AllianceAddons);
             AddIf(profile.Nameplates.GameNameplates == GameNameplateMode.HideAll && modules.Nameplates && profile.Nameplates.Enabled, NameplateAddons);
 
             // Hotbars follow their visibility rule (e.g. only in combat).

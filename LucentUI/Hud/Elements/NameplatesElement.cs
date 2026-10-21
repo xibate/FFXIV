@@ -55,7 +55,7 @@ public sealed unsafe class NameplatesElement : HudElement
         }
 
         var target = Svc.TargetManager.Target;
-        Collect(s, player, target);
+        Collect(s, player, target, ctx.DeltaTime);
 
         // Far plates first so nearer ones (and the target, last) end up on top.
         plates.Sort((a, b) => a.IsTarget != b.IsTarget ? (a.IsTarget ? 1 : -1) : b.Distance.CompareTo(a.Distance));
@@ -85,9 +85,17 @@ public sealed unsafe class NameplatesElement : HudElement
     /// <summary>Plates hide in Unlock Mode, but stay while settings are previewed so changes show on real units.</summary>
     internal static bool UnlockActive;
 
-    private void Collect(NameplateSettings s, IPlayerCharacter player, IGameObject? target)
+    // Per unit: plate height above its feet, smoothed so head-bob animations do not shake the plate.
+    private readonly Dictionary<ulong, float> heights = new();
+
+    private void Collect(NameplateSettings s, IPlayerCharacter player, IGameObject? target, float deltaTime)
     {
         plates.Clear();
+        if (heights.Count > 400)
+        {
+            heights.Clear();
+        }
+
         listed.Clear();
 
         if (s.FollowGameNameplates)
@@ -112,7 +120,7 @@ public sealed unsafe class NameplatesElement : HudElement
         var useList = s.FollowGameNameplates && listed.Count > 0;
         foreach (var obj in Svc.ObjectTable)
         {
-            if (obj is not ICharacter || (!s.ShowSelf && obj.Address == player.Address))
+            if (!HasPlate(obj) || (!s.ShowSelf && obj.Address == player.Address))
             {
                 continue;
             }
@@ -141,13 +149,22 @@ public sealed unsafe class NameplatesElement : HudElement
                 continue;
             }
 
+            // The game's nameplate point follows the head as it animates; keep only its height above the feet,
+            // smoothed, and stand it on the unit's position so names stay still.
             FFXIVClientStructs.FFXIV.Common.Math.Vector3 gameWorld;
             go->GetNamePlateWorldPosition(&gameWorld);
-            var world = new Vector3(gameWorld.X, gameWorld.Y, gameWorld.Z);
-            if (!float.IsFinite(world.Y) || Vector3.Distance(world, obj.Position) > 30f)
+            var measured = gameWorld.Y - obj.Position.Y;
+            if (!float.IsFinite(measured) || measured < 0f || measured > 30f)
             {
-                world = new Vector3(obj.Position.X, obj.Position.Y + go->Height * 2.2f, obj.Position.Z);
+                measured = go->Height * 2.2f;
             }
+
+            var key = obj.GameObjectId;
+            var height = heights.TryGetValue(key, out var previous)
+                ? previous + (measured - previous) * (1f - MathF.Exp(-Math.Max(0f, deltaTime) / 0.4f))
+                : measured;
+            heights[key] = height;
+            var world = new Vector3(obj.Position.X, obj.Position.Y + height, obj.Position.Z);
 
             if (!Svc.GameGui.WorldToScreen(world, out var screen))
             {
@@ -158,9 +175,13 @@ public sealed unsafe class NameplatesElement : HudElement
         }
     }
 
+    /// <summary>Kinds of objects that can get a plate: players, battle NPCs, town NPCs, chocobos and retainers.</summary>
+    private static bool HasPlate(IGameObject obj) =>
+        obj.ObjectKind is ObjectKind.Pc or ObjectKind.BattleNpc or ObjectKind.EventNpc or ObjectKind.Companion or ObjectKind.Retainer;
+
     /// <summary>Whether a unit gets a LucentUI plate (before the on-screen checks).</summary>
     public static bool Replaces(NameplateSettings s, IGameObject obj, IGameObject player) =>
-        obj is ICharacter &&
+        HasPlate(obj) &&
         (s.ShowSelf || obj.Address != player.Address) &&
         ModeFor(s, obj) != PlateMode.Hidden &&
         Vector3.Distance(player.Position, obj.Position) <= s.MaxDistance;
@@ -179,6 +200,8 @@ public sealed unsafe class NameplatesElement : HudElement
 
                 return s.Enemies;
             case IBattleNpc:
+                return s.FriendlyNpcs;
+            case not null when obj.ObjectKind is ObjectKind.EventNpc or ObjectKind.Companion or ObjectKind.Retainer:
                 return s.FriendlyNpcs;
             default:
                 return PlateMode.Hidden;
@@ -264,7 +287,8 @@ public sealed unsafe class NameplatesElement : HudElement
         }
 
         var hovered = s.Interactive && ctx.Input.HandleUnit(min, max, unit.Object, ctx.General);
-        var color = s.NameOnlyJobColor ? UnitBar.UnitColor(ctx.Style, unit) : Vector4.One;
+        var isNpc = plate.Object.ObjectKind is ObjectKind.EventNpc or ObjectKind.Retainer or ObjectKind.Companion;
+        var color = isNpc ? ctx.Style.Friendly : s.NameOnlyJobColor ? UnitBar.UnitColor(ctx.Style, unit) : Vector4.One;
         if ((s.HighlightTarget && plate.IsTarget) || hovered)
         {
             color = Vector4.Lerp(color, Vector4.One, 0.35f);

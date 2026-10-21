@@ -156,6 +156,7 @@ public sealed class ModuleSettings
     public bool PartyCooldowns = true;
     public bool Nameplates = false;
     public bool EnemyList = true;
+    public bool Alliance = true;
     public bool Extras = true;
     public bool Hotbars = false;
 }
@@ -315,6 +316,16 @@ public sealed class PartySettings
     public Vector4 CleansableColor = Colors.Rgb(0xB65CE6);
     public bool ShowReadyCheck = true;
 
+    // Buff icons on each member (e.g. your HoTs and shields)
+    public bool ShowBuffs = true;
+    public bool BuffsOnlyMine = true;
+    public ListFilter BuffFilter = ListFilter.None;
+    public List<uint> BuffIds = new();
+    public int MaxBuffs = 4;
+    public float BuffIconHeight = 20f;
+    public PartyIconCorner BuffCorner = PartyIconCorner.BottomRight;
+    public bool BuffTimers = true;
+
     // Debuff icons on each member
     public bool ShowDebuffs = true;
     public int MaxDebuffs = 3;
@@ -473,6 +484,15 @@ public enum GameNameplateMode
     HideAll,
 }
 
+/// <summary>Where buff icons sit on a party member, growing inwards from that corner.</summary>
+public enum PartyIconCorner
+{
+    BottomRight,
+    BottomLeft,
+    TopRight,
+    TopLeft,
+}
+
 /// <summary>The order of the role groups when party frames are sorted by role.</summary>
 public enum PartyRoleOrder
 {
@@ -543,6 +563,28 @@ public sealed class NameplateSettings
     public float YOffset = 0f;
 }
 
+/// <summary>The two other alliance parties in 24-player content.</summary>
+public sealed class AllianceSettings
+{
+    public bool Enabled = true;
+    public Vector2 Size = new(130, 24);
+    public int Spacing = 2;
+    public int GroupSpacing = 10;
+
+    /// <summary>Put the two parties next to each other instead of one above the other.</summary>
+    public bool SideBySide = true;
+    public string LeftText = "{name:10}";
+    public string RightText = "{hp:pct}%";
+    public TextStyle LeftStyle = new();
+    public TextStyle RightStyle = new();
+    public HealthColorMode ColorMode = HealthColorMode.Inherit;
+    public string Texture = string.Empty;
+    public bool RangeFade = true;
+    public bool Interactive = true;
+    public bool ShowJobIcon = true;
+    public VisibilitySettings Visibility = new();
+}
+
 public sealed class EnemyListSettings
 {
     public bool Enabled = true;
@@ -599,6 +641,7 @@ public sealed class DefaultHudSettings
     public bool HideLimitBreak = false;
     public bool HideExp = false;
     public bool HidePullTimer = false;
+    public bool HideAlliance = false;
 }
 
 public sealed class LayoutSettings
@@ -644,6 +687,7 @@ public sealed class Profile
     public CooldownManagerSettings CooldownManager = new();
     public PartyCooldownSettings PartyCooldowns = new();
     public NameplateSettings Nameplates = new();
+    public AllianceSettings Alliance = new();
     public EnemyListSettings EnemyList = new();
 
     public GcdSettings Gcd = new();

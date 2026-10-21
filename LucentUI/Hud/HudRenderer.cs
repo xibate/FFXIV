@@ -30,6 +30,7 @@ public sealed class HudRenderer : IDisposable
         {
             new NameplatesElement(),
             new PartyFramesElement(),
+            new AllianceFramesElement(),
             new PartyCooldownsElement(cooldowns),
             new EnemyListElement(),
             new UnitFrameElement(UnitKind.Player),
