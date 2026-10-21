@@ -199,17 +199,19 @@ public sealed unsafe class CooldownBarElement : HudElement
                     : icon.Remaining < 3f && kind != CooldownBarKind.Buffs
                         ? icon.Remaining.ToString("0.0", CultureInfo.InvariantCulture)
                         : ((int)Math.Ceiling(icon.Remaining)).ToString(CultureInfo.InvariantCulture);
-                Gfx.Text(ctx, text, (min + max) / 2f, TextAlign.Center, Vector4.One);
+                Gfx.Text(ctx, text, (min + max) / 2f + s.TimerOffset, TextAlign.Center, Vector4.One);
             }
         }
 
+        var countPos = new Vector2(max.X - 3, max.Y - 7) + s.CountOffset;
+        using var countFont = s.CountFontSize > 0 ? ctx.Fonts.Push(s.CountFontSize) : null;
         if (icon.Count >= 0)
         {
-            Gfx.Text(ctx, icon.Count.ToString(CultureInfo.InvariantCulture), new Vector2(max.X - 3, max.Y - 7), TextAlign.Right, icon.Count > 0 ? Vector4.One : Colors.Rgb(0xFF6B5E));
+            Gfx.Text(ctx, icon.Count.ToString(CultureInfo.InvariantCulture), countPos, TextAlign.Right, icon.Count > 0 ? Vector4.One : Colors.Rgb(0xFF6B5E));
         }
         else if (s.ShowCharges && icon.MaxCharges > 1)
         {
-            Gfx.Text(ctx, icon.Charges.ToString(CultureInfo.InvariantCulture), new Vector2(max.X - 3, max.Y - 7), TextAlign.Right, Vector4.One);
+            Gfx.Text(ctx, icon.Charges.ToString(CultureInfo.InvariantCulture), countPos, TextAlign.Right, Vector4.One);
         }
     }
 

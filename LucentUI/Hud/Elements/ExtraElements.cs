@@ -216,6 +216,7 @@ public sealed unsafe class PullTimerElement : HudElement
         var (min, max) = Gfx.FramedBar(ctx, pos, s.Size, remaining / Math.Max(1f, startedAt), s.Color);
         if (s.ShowText)
         {
+            using var font = ctx.Fonts.Push(s.FontSize);
             Gfx.Text(ctx, remaining.ToString("0.0", CultureInfo.InvariantCulture), (min + max) / 2f, TextAlign.Center, Vector4.One);
         }
     }
@@ -275,7 +276,7 @@ public sealed unsafe class ExperienceElement : HudElement
 
         if (s.ShowText && s.Size.Y >= 10)
         {
-            using var font = ctx.Fonts.PushSmall();
+            using var font = s.FontSize > 0 ? ctx.Fonts.Push(s.FontSize) : ctx.Fonts.PushSmall();
             var text = $"Lv {level}  {TextTags.Number((uint)current, true)} / {TextTags.Number((uint)needed, true)}  ({fraction * 100f:0.0}%)";
             Gfx.Text(ctx, text, (min + max) / 2f, TextAlign.Center, Vector4.One);
         }

@@ -23,7 +23,7 @@ public static class Presets
 
     private static readonly HashSet<string> PixelInts = new()
     {
-        "FontSize", "SmallFontSize", "TimerFontSize", "NameOnlyFontSize", "Spacing", "GroupSpacing", "PowerHeight", "ShadowSize",
+        "FontSize", "SmallFontSize", "TimerFontSize", "NameOnlyFontSize", "CountFontSize", "TextFontSize", "TrackerFontSize", "Spacing", "GroupSpacing", "PowerHeight", "ShadowSize",
     };
 
     /// <summary>The export string of the Lucent profile, embedded in the plugin.</summary>

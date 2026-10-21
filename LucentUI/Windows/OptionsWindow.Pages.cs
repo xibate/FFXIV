@@ -98,6 +98,11 @@ public sealed partial class OptionsWindow
             Ui.Slider("Spacing", ref s.Spacing, 0, 20);
             Ui.MediaPicker("Bar texture", ref s.Texture, false, "Profile texture", "Empty uses the texture from the Style page.");
             Ui.Toggle("Show values", ref s.ShowText);
+            if (s.ShowText)
+            {
+                Ui.Slider("Value font size", ref s.TextFontSize, 0, 40, "0 uses the small font size from the Style page.");
+            }
+
             Ui.Toggle("Hide empty timers", ref s.HideEmptyTimers, "Buff and DoT bars disappear while they are not running.");
             DrawVisibility("Job Gauge", s.Visibility);
         }
@@ -430,6 +435,9 @@ public sealed partial class OptionsWindow
         }
         Ui.Slider("Icon zoom", ref s.IconZoom, 0f, 0.3f, "%.2f", "Crops the icon's edges.");
         Ui.Slider("Timer font size", ref s.TimerFontSize, 0, 40, "0 uses the small font size from the Style page.");
+        Ui.Offset("Timer offset", ref s.TimerOffset, "Moves the timer from the icon's centre.");
+        Ui.Slider("Charges font size", ref s.CountFontSize, 0, 40, "Charges and item counts. 0 uses the timer font size.");
+        Ui.Offset("Charges offset", ref s.CountOffset, "Moves the number from the icon's bottom-right corner.");
         DrawVisibility(title, s.Visibility);
     }
 
@@ -447,6 +455,7 @@ public sealed partial class OptionsWindow
         Ui.Toggle("Grow upwards", ref s.GrowUp);
         Ui.Toggle("Show ready cooldowns", ref s.ShowReady);
         Ui.Toggle("Show when solo", ref s.ShowWhenSolo);
+        Ui.Slider("Font size", ref s.FontSize, 0, 40, "0 uses the small font size from the Style page.");
 
         Ui.Card("Cooldown Types");
         Ui.Toggle("Raid buffs", ref s.ShowRaidBuffs, "Divination, Chain Stratagem, Battle Litany, Technical Finish...");
@@ -462,7 +471,8 @@ public sealed partial class OptionsWindow
         Ui.PageHeader("Nameplates", "Health bars and names above units, like EllesmereUI's nameplates.");
         ModuleSwitch("Nameplates", ref Plugin.Profiles.Current.Modules.Nameplates, "Off by default because it draws over the game world.");
         CopyAndReset("nameplates", s, () => new Profile().Nameplates);
-        var tab = Ui.Tabs("nameplates", "Units", "Bars", "Text", "Cast Bar", "Names");
+        ElementPreview("nameplates");
+        var tab = Ui.Tabs("nameplates", "Units", "Bars", "Text", "Cast Bar");
 
         if (Ui.Tab(tab, 0))
         {
@@ -497,6 +507,22 @@ public sealed partial class OptionsWindow
             DrawTextSlot("Plate Left Text", ref s.LeftText, s.LeftStyle);
             DrawTextSlot("Plate Center Text", ref s.CenterText, s.CenterStyle);
             DrawTextSlot("Plate Right Text", ref s.RightText, s.RightStyle);
+
+            Ui.Card("Name-Only Plates", "Units set to Name Only on the Units tab, e.g. friendly players and NPCs.");
+            Ui.TextContent("Shows", ref s.NameOnlyText);
+            Ui.Slider("Font size", ref s.NameOnlyFontSize, 0, 48, "0 uses the HUD font size from the Style page.");
+            Ui.Offset("Offset", ref s.NameOnlyOffset, "Moves the name from its usual spot above the unit.");
+            Ui.Toggle("Job colour for players", ref s.NameOnlyJobColor);
+            if (!s.NameOnlyJobColor)
+            {
+                Ui.Color("Player name colour", ref s.NameOnlyPlayerColor);
+            }
+
+            Ui.Toggle("Own NPC colour", ref s.NameOnlyOwnNpcColor, "Off uses the Friendly NPC colour from the Style page.");
+            if (s.NameOnlyOwnNpcColor)
+            {
+                Ui.Color("NPC name colour", ref s.NameOnlyNpcColor);
+            }
         }
 
         if (Ui.Tab(tab, 3))
@@ -509,13 +535,6 @@ public sealed partial class OptionsWindow
             Ui.TextLook("Spell name", s.CastNameStyle);
         }
 
-        if (Ui.Tab(tab, 4))
-        {
-            Ui.Card("Name-Only Plates");
-            Ui.TextContent("Shows", ref s.NameOnlyText);
-            Ui.Slider("Font size", ref s.NameOnlyFontSize, 0, 40, "0 uses the HUD font size.");
-            Ui.Toggle("Job colour for players", ref s.NameOnlyJobColor);
-        }
     }
 
     private static void DrawEnemyList(EnemyListSettings s)
@@ -533,9 +552,8 @@ public sealed partial class OptionsWindow
         Ui.Toggle("Show casts", ref s.ShowCast);
         Ui.Toggle("Mark enemies attacking you", ref s.ShowAggro);
 
-        Ui.Card("Enemy List Text");
-        Ui.TextContent("Left text", ref s.LeftText);
-        Ui.TextContent("Right text", ref s.RightText);
+        DrawTextSlot("Enemy List Left Text", ref s.LeftText, s.LeftStyle);
+        DrawTextSlot("Enemy List Right Text", ref s.RightText, s.RightStyle);
 
         DrawVisibility("Enemy List", s.Visibility);
     }
@@ -555,19 +573,26 @@ public sealed partial class OptionsWindow
         Ui.Color("Colour", ref gcd.Color);
         DrawVisibility("GCD", gcd.Visibility);
 
-        DrawSimpleBar("MP Ticker", profile.MpTicker, "Hide when MP is full");
-        DrawSimpleBar("Limit Break", profile.LimitBreak, "Hide when empty");
+        DrawSimpleBar("MP Ticker", profile.MpTicker, "Hide when MP is full", hasText: false);
+        DrawSimpleBar("Limit Break", profile.LimitBreak, "Hide when empty", hasText: false);
         DrawSimpleBar("Pull Timer", profile.PullTimer, null);
         DrawSimpleBar("Experience", profile.Experience, "Hide at max level");
     }
 
-    private static void DrawSimpleBar(string title, SimpleBarSettings s, string? hideLabel)
+    private static void DrawSimpleBar(string title, SimpleBarSettings s, string? hideLabel, bool hasText = true)
     {
         Ui.Card(title);
         Ui.Toggle("Enabled", ref s.Enabled);
         Ui.Size("Size", ref s.Size);
         Ui.Color("Colour", ref s.Color);
-        Ui.Toggle("Show text", ref s.ShowText);
+        if (hasText)
+        {
+            Ui.Toggle("Show text", ref s.ShowText);
+            if (s.ShowText)
+            {
+                Ui.Slider("Font size", ref s.FontSize, 0, 40, "0 uses the usual size.");
+            }
+        }
         if (hideLabel != null)
         {
             Ui.Toggle(hideLabel, ref s.HideWhenInactive);

@@ -738,7 +738,7 @@ public sealed partial class OptionsWindow : Window
         for (var i = 0; i < ids.Length; i++)
         {
             var element = previewHud.Elements.FirstOrDefault(e => e.Id == ids[i]);
-            sizes[i] = element?.GetSize(profile) ?? Vector2.Zero;
+            sizes[i] = element?.GetPreviewSize(profile) ?? Vector2.Zero;
             total += sizes[i].X + (i > 0 ? gap : 0);
             tallest = Math.Max(tallest, sizes[i].Y);
         }
@@ -976,6 +976,7 @@ public sealed partial class OptionsWindow : Window
             Ui.Toggle("Only if I can cleanse", ref s.CleansableOnlyIfICanCleanse, "Healers and bards.");
             Ui.Color("Cleansable colour", ref s.CleansableColor);
             Ui.Toggle("Ready check", ref s.ShowReadyCheck);
+            Ui.Slider("Tracker font size", ref s.TrackerFontSize, 0, 40, "Raise and invulnerability text. 0 uses the HUD font size.");
         }
 
         if (Ui.Tab(tab, 4))

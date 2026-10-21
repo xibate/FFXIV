@@ -123,7 +123,7 @@ public sealed class HudRenderer : IDisposable
         try
         {
             using var font = fonts.PushMain();
-            element.Draw(c, pos);
+            element.DrawSample(c, pos);
         }
         catch (Exception ex)
         {
@@ -137,7 +137,7 @@ public sealed class HudRenderer : IDisposable
             input.Suppressed = suppressed;
         }
 
-        return element.GetSize(profile);
+        return element.GetPreviewSize(profile);
     }
 
     /// <summary>Set while the settings window is open with previews on: elements show sample data.</summary>

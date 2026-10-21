@@ -1161,6 +1161,11 @@ public static class EllesmereImport
             s.FriendlyNpcs = (Bool(Get(np, "showFriendlyNPCs")) ?? false) ? PlateMode.NameOnly : PlateMode.Hidden;
             s.NameOnlyFontSize = (int)MathF.Round((float)(Num(Get(np, "friendlyNameSize")) ?? 15) * scale);
             s.NameOnlyJobColor = Bool(Get(np, "classColorFriendly")) ?? true;
+            if (Color(Get(np, "friendlyNPCNameColor")) is { } npcName)
+            {
+                s.NameOnlyOwnNpcColor = true;
+                s.NameOnlyNpcColor = npcName;
+            }
             s.TargetScale = Math.Clamp((float)(Num(Get(np, "targetScale")) ?? 100) / 100f, 1f, 1.5f);
             s.NonTargetAlpha = Math.Clamp((float)(Num(Get(np, "nonTargetAlpha")) ?? 100) / 100f, 0f, 1f);
             s.YOffset = -MathF.Round((float)(Num(Get(np, "nameplateYOffset")) ?? 0) * scale);

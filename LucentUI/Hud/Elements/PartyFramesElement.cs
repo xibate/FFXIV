@@ -113,6 +113,7 @@ public sealed class PartyFramesElement : HudElement
         var unit = member.Unit;
         var size = s.Size;
         var obj = unit.Object;
+        using var font = ctx.Fonts.Push(s.TrackerFontSize);
 
         // Raise: dead and either already raised or someone is casting a raise on them.
         if (s.ShowRaise && unit.IsDead && obj != null)

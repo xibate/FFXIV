@@ -86,6 +86,12 @@ public abstract class HudElement
 
     public abstract void Draw(DrawContext ctx, Vector2 pos);
 
+    /// <summary>Size of the settings-page preview; most elements preview at their own size.</summary>
+    public virtual Vector2 GetPreviewSize(Profile profile) => GetSize(profile);
+
+    /// <summary>Draws the settings-page preview; most elements draw themselves with sample data.</summary>
+    public virtual void DrawSample(DrawContext ctx, Vector2 pos) => Draw(ctx, pos);
+
     /// <summary>False for elements drawn across the screen (like nameplates) that have no mover.</summary>
     public virtual bool Movable => true;
 

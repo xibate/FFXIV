@@ -76,11 +76,51 @@ public sealed unsafe class NameplatesElement : HudElement
             }
             else
             {
-                DrawNamePlate(ctx, s, unit, plate);
+                DrawNamePlate(ctx, s, unit, plate, IsFriendlyNpc(plate.Object));
             }
         }
 
         ctx.Alpha = savedAlpha;
+    }
+
+    private static bool IsFriendlyNpc(IGameObject obj) =>
+        obj.ObjectKind is ObjectKind.EventNpc or ObjectKind.Retainer or ObjectKind.Companion;
+
+    // Settings preview: an enemy health-bar plate (with a cast), a player name and an NPC name.
+    private const float SampleGap = 36f;
+    private const float SampleNameWidth = 150f;
+
+    public override Vector2 GetPreviewSize(Profile profile)
+    {
+        var s = profile.Nameplates;
+        var castHeight = s.ShowCast ? s.CastHeight + 1f : 0f;
+        var nameHeight = (s.NameOnlyFontSize > 0 ? s.NameOnlyFontSize : profile.Style.FontSize) + 6f + Math.Abs(s.NameOnlyOffset.Y);
+        return new Vector2(s.Size.X + 2 * (SampleGap + SampleNameWidth), Math.Max(s.Size.Y + castHeight, nameHeight));
+    }
+
+    public override void DrawSample(DrawContext ctx, Vector2 pos)
+    {
+        var s = ctx.Profile.Nameplates;
+        var size = GetPreviewSize(ctx.Profile);
+        var bottom = pos.Y + size.Y;
+
+        var enemy = Units.Sample("Striking Dummy", 0, 0.62f, UnitReaction.Hostile, 0f);
+        var castHeight = s.ShowCast ? MathF.Round(s.CastHeight) : 0f;
+        var barMin = Gfx.Floor(new Vector2(pos.X, bottom - s.Size.Y - (s.ShowCast ? castHeight + 1 : 0)));
+        DrawBarUnit(ctx, s, enemy, barMin, Gfx.Floor(s.Size), false, false);
+        if (s.ShowCast)
+        {
+            var cast = new CastData { Name = "Fire IV", Icon = 2660, Current = 1.1f, Total = 2.8f, Interruptible = false };
+            DrawCast(ctx, s, cast, new Vector2(barMin.X, barMin.Y + MathF.Floor(s.Size.Y) + 1), new Vector2(MathF.Floor(s.Size.X), castHeight));
+        }
+
+        var player = Svc.ObjectTable.LocalPlayer;
+        var name = Units.Sample(player?.Name.TextValue ?? "Your Name", player?.ClassJob.RowId ?? 19u, 1f, UnitReaction.Player, 0f);
+        var npc = Units.Sample("Alphinaud", 0, 1f, UnitReaction.Friendly, 0f);
+        var nameX = pos.X + s.Size.X + SampleGap + SampleNameWidth / 2f;
+        var nameBottom = bottom - Math.Max(0f, s.NameOnlyOffset.Y);
+        DrawNameText(ctx, s, name, new Vector2(nameX, nameBottom), false, false);
+        DrawNameText(ctx, s, npc, new Vector2(nameX + SampleNameWidth + SampleGap, nameBottom), false, true);
     }
 
     /// <summary>Plates hide in Unlock Mode, but stay while settings are previewed so changes show on real units.</summary>
@@ -295,6 +335,16 @@ public sealed unsafe class NameplatesElement : HudElement
         }
 
         var hovered = s.Interactive && ctx.Input.HandleUnit(min, min + size, unit.Object, ctx.General);
+        DrawBarUnit(ctx, s, unit, min, size, plate.IsTarget, hovered);
+
+        if (hasCast && Casts.TryGet(unit.Object, out var cast))
+        {
+            DrawCast(ctx, s, cast, new Vector2(min.X, min.Y + size.Y + 1), new Vector2(size.X, castHeight));
+        }
+    }
+
+    private static void DrawBarUnit(DrawContext ctx, NameplateSettings s, in UnitData unit, Vector2 min, Vector2 size, bool isTarget, bool hovered)
+    {
         UnitBar.Render(ctx, min, size, unit, new UnitBarOptions
         {
             Texture = s.Texture,
@@ -307,15 +357,10 @@ public sealed unsafe class NameplatesElement : HudElement
             RightStyle = s.RightStyle,
             ColorMode = s.ColorMode,
             ShowShield = s.ShowShield,
-            Highlight = s.HighlightTarget && plate.IsTarget,
+            Highlight = s.HighlightTarget && isTarget,
             Hovered = hovered,
             SmoothKey = unit.Object != null ? DrawContext.Key("nameplate", unit.Object.GameObjectId) : 0,
         });
-
-        if (hasCast && Casts.TryGet(unit.Object, out var cast))
-        {
-            DrawCast(ctx, s, cast, new Vector2(min.X, min.Y + size.Y + 1), new Vector2(size.X, castHeight));
-        }
     }
 
     private static void DrawCast(DrawContext ctx, NameplateSettings s, in CastData cast, Vector2 pos, Vector2 size)
@@ -337,7 +382,18 @@ public sealed unsafe class NameplatesElement : HudElement
         Gfx.TextRow(ctx, min, max, (name, s.CastNameStyle), (string.Empty, null), (timer, s.CastNameStyle), color, 3f);
     }
 
-    private static void DrawNamePlate(DrawContext ctx, NameplateSettings s, in UnitData unit, in Plate plate)
+    private static void DrawNamePlate(DrawContext ctx, NameplateSettings s, in UnitData unit, in Plate plate, bool isNpc)
+    {
+        if (ctx.Clips.Contains(plate.Screen))
+        {
+            return;
+        }
+
+        DrawNameText(ctx, s, unit, plate.Screen, plate.IsTarget, isNpc);
+    }
+
+    /// <summary>A name-only plate: its text's bottom centre sits on <paramref name="screen"/>, moved by the offset.</summary>
+    private static void DrawNameText(DrawContext ctx, NameplateSettings s, in UnitData unit, Vector2 screen, bool isTarget, bool isNpc)
     {
         var text = TextTags.Format(s.NameOnlyText, unit, true);
         if (string.IsNullOrWhiteSpace(text))
@@ -345,23 +401,20 @@ public sealed unsafe class NameplatesElement : HudElement
             return;
         }
 
-        var scale = plate.IsTarget ? Math.Clamp(s.TargetScale, 1f, 2f) : 1f;
+        var scale = isTarget ? Math.Clamp(s.TargetScale, 1f, 2f) : 1f;
         var fontSize = (int)MathF.Round((s.NameOnlyFontSize > 0 ? s.NameOnlyFontSize : ctx.Style.FontSize) * scale);
         using var font = ctx.Fonts.Push(fontSize);
 
         var textSize = Dalamud.Bindings.ImGui.ImGui.CalcTextSize(text);
-        var anchor = Gfx.Floor(plate.Screen - new Vector2(0, textSize.Y / 2f));
+        var anchor = Gfx.Floor(screen - new Vector2(0, textSize.Y / 2f) + s.NameOnlyOffset * scale);
         var min = anchor - textSize / 2f;
         var max = anchor + textSize / 2f;
-        if (ctx.Clips.Contains(anchor))
-        {
-            return;
-        }
 
         var hovered = s.Interactive && ctx.Input.HandleUnit(min, max, unit.Object, ctx.General);
-        var isNpc = plate.Object.ObjectKind is ObjectKind.EventNpc or ObjectKind.Retainer or ObjectKind.Companion;
-        var color = isNpc ? ctx.Style.Friendly : s.NameOnlyJobColor ? UnitBar.UnitColor(ctx.Style, unit) : Vector4.One;
-        if ((s.HighlightTarget && plate.IsTarget) || hovered)
+        var color = isNpc
+            ? s.NameOnlyOwnNpcColor ? s.NameOnlyNpcColor : ctx.Style.Friendly
+            : s.NameOnlyJobColor ? UnitBar.UnitColor(ctx.Style, unit) : s.NameOnlyPlayerColor;
+        if ((s.HighlightTarget && isTarget) || hovered)
         {
             color = Vector4.Lerp(color, Vector4.One, 0.35f);
         }

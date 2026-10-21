@@ -326,6 +326,9 @@ public sealed class PartySettings
     public Vector4 CleansableColor = Colors.Rgb(0xB65CE6);
     public bool ShowReadyCheck = true;
 
+    /// <summary>Size of the raise and invulnerability text; 0 uses the HUD font size.</summary>
+    public int TrackerFontSize = 0;
+
     /// <summary>Buff icons on each member: by default your own (HoTs, shields, mitigation).</summary>
     public StatusIconSettings Buffs = new() { OnlyMine = true, Max = 4, Size = 20f, Anchor = IconAnchor.BottomRight };
 
@@ -358,6 +361,9 @@ public sealed class JobGaugeSettings
     public float BarHeight = 14f;
     public int Spacing = 3;
     public bool ShowText = true;
+
+    /// <summary>Size of the numbers on the gauge bars; 0 uses the small font size.</summary>
+    public int TextFontSize = 0;
     public bool HideEmptyTimers = true;
 
     /// <summary>"JOB.part" → overrides. Missing parts use their defaults.</summary>
@@ -392,6 +398,15 @@ public sealed class CooldownBarSettings
     public bool DimOnCooldown = true;
     public float IconZoom = 0.06f;
     public int TimerFontSize = 0;
+
+    /// <summary>Moves the cooldown timer from the icon's centre.</summary>
+    public Vector2 TimerOffset = Vector2.Zero;
+
+    /// <summary>Size of the charges / item count number; 0 uses the timer size.</summary>
+    public int CountFontSize = 0;
+
+    /// <summary>Moves the charges / item count from the icon's bottom-right corner.</summary>
+    public Vector2 CountOffset = Vector2.Zero;
     public bool ShowBackground = true;
 
     /// <summary>Shape of buff icons (Buffs bar only).</summary>
@@ -473,6 +488,9 @@ public sealed class PartyCooldownSettings
     public bool ShowTankInvulns = true;
     public bool ShowWhenSolo = false;
     public bool ShowReady = true;
+
+    /// <summary>Row text size; 0 uses the small font size.</summary>
+    public int FontSize = 0;
     public VisibilitySettings Visibility = new();
 }
 
@@ -661,6 +679,16 @@ public sealed class NameplateSettings
     public int NameOnlyFontSize = 0;
     public bool NameOnlyJobColor = true;
 
+    /// <summary>Moves name-only text from its usual spot above the unit.</summary>
+    public Vector2 NameOnlyOffset = Vector2.Zero;
+
+    /// <summary>Player names when job colour is off.</summary>
+    public Vector4 NameOnlyPlayerColor = Vector4.One;
+
+    /// <summary>Use <see cref="NameOnlyNpcColor"/> for NPC names instead of the Style page's friendly colour.</summary>
+    public bool NameOnlyOwnNpcColor = false;
+    public Vector4 NameOnlyNpcColor = Vector4.One;
+
     // Target.
     public bool HighlightTarget = true;
     public float TargetScale = 1.1f;
@@ -718,6 +746,8 @@ public sealed class EnemyListSettings
     public bool ShowAggro = true;
     public string LeftText = "{name:18}";
     public string RightText = "{hp:pct}%";
+    public TextStyle LeftStyle = new();
+    public TextStyle RightStyle = new();
     public VisibilitySettings Visibility = new();
 }
 
@@ -739,6 +769,9 @@ public sealed class SimpleBarSettings
     public Vector2 Size = new(260, 8);
     public Vector4 Color = Colors.Rgb(0x3D8BF2);
     public bool ShowText = true;
+
+    /// <summary>Text size; 0 uses the element's usual size.</summary>
+    public int FontSize = 0;
     public bool HideWhenInactive = true;
     public VisibilitySettings Visibility = new();
 }

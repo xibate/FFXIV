@@ -131,7 +131,7 @@ public sealed class JobGaugeElement : HudElement
                 var (min, max) = Gfx.FramedBar(ctx, pos, size, value.Hidden ? 0f : value.Fraction, color);
                 if (s.ShowText && !string.IsNullOrEmpty(value.Text))
                 {
-                    using var font = ctx.Fonts.PushSmall();
+                    using var font = s.TextFontSize > 0 ? ctx.Fonts.Push(s.TextFontSize) : ctx.Fonts.PushSmall();
                     Gfx.Text(ctx, value.Text, (min + max) / 2f, TextAlign.Center, Vector4.One);
                 }
 

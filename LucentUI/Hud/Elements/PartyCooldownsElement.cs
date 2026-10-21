@@ -66,7 +66,7 @@ public sealed class PartyCooldownsElement : HudElement
 
         var size = GetSize(ctx.Profile);
         var count = Math.Min(rows.Count, Math.Max(1, s.MaxRows));
-        using var font = ctx.Fonts.PushSmall();
+        using var font = s.FontSize > 0 ? ctx.Fonts.Push(s.FontSize) : ctx.Fonts.PushSmall();
         for (var i = 0; i < count; i++)
         {
             var y = s.GrowUp ? size.Y - (i + 1) * s.RowSize.Y - i * s.Spacing : i * (s.RowSize.Y + s.Spacing);
