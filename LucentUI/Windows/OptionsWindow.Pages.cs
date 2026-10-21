@@ -393,6 +393,10 @@ public sealed partial class OptionsWindow
         Ui.Toggle("Charges", ref s.ShowCharges);
         Ui.Toggle("Dim while on cooldown", ref s.DimOnCooldown);
         Ui.Toggle("Icon background", ref s.ShowBackground);
+        if (title.StartsWith("Buffs", System.StringComparison.Ordinal))
+        {
+            Ui.Enum("Buff icon shape", ref s.BuffShape, "Style Default follows the Style page.");
+        }
         Ui.Slider("Icon zoom", ref s.IconZoom, 0f, 0.3f, "%.2f", "Crops the icon's edges.");
         Ui.Slider("Timer font size", ref s.TimerFontSize, 0, 40, "0 uses the small font size from the Style page.");
         DrawVisibility(title, s.Visibility);

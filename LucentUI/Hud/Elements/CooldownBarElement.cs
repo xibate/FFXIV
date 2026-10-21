@@ -172,9 +172,11 @@ public sealed unsafe class CooldownBarElement : HudElement
         // Buff icons are 3:4 portraits; action icons are square with a frame we crop slightly.
         if (kind == CooldownBarKind.Buffs)
         {
-            var w = (max.Y - min.Y) * 0.75f;
+            // Portrait buffs sit centred in the square slot; square and round ones fill it.
+            var shape = IconShapes.Resolve(s.BuffShape, ctx.Style);
+            var w = (max.Y - min.Y) * IconShapes.Aspect(shape);
             var x = MathF.Floor((min.X + max.X - w) / 2f);
-            dl.AddImage(texture.Handle, new Vector2(x, min.Y), new Vector2(x + w, max.Y), Vector2.Zero, Vector2.One, ctx.Col(Vector4.One));
+            IconShapes.Draw(ctx, texture, new Vector2(x, min.Y), new Vector2(x + w, max.Y), shape, Vector4.One);
         }
         else
         {

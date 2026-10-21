@@ -181,6 +181,9 @@ public sealed class StyleSettings
 
     /// <summary>A bar texture from the media library by name; empty uses <see cref="BarStyle"/>.</summary>
     public string BarTexture = string.Empty;
+
+    /// <summary>Shape of every buff and debuff icon whose own shape is "Style Default".</summary>
+    public IconShape IconShape = IconShape.Portrait;
     public int FontSize = 16;
     public int SmallFontSize = 13;
     public bool TextOutline = true;
@@ -272,6 +275,7 @@ public sealed class AuraSettings
     public bool Tooltips = true;
     public bool RightClickToRemove = false;
     public AuraBorder Border = AuraBorder.None;
+    public IconShape Shape = IconShape.StyleDefault;
     public TimerPosition TimerPosition = TimerPosition.Bottom;
     public int TimerFontSize = 0;
     public ListFilter Filter = ListFilter.None;
@@ -383,6 +387,9 @@ public sealed class CooldownBarSettings
     public float IconZoom = 0.06f;
     public int TimerFontSize = 0;
     public bool ShowBackground = true;
+
+    /// <summary>Shape of buff icons (Buffs bar only).</summary>
+    public IconShape BuffShape = IconShape.StyleDefault;
     public VisibilitySettings Visibility = new();
 }
 
@@ -510,6 +517,9 @@ public enum IconShape
 
     /// <summary>Cropped to a circle.</summary>
     Round,
+
+    /// <summary>Use the shape picked on the Style page.</summary>
+    StyleDefault,
 }
 
 /// <summary>Buff or debuff icons on a party or alliance member.</summary>
@@ -523,7 +533,7 @@ public sealed class StatusIconSettings
 
     /// <summary>Icon height in pixels (square and round icons are as wide as they are high).</summary>
     public float Size = 20f;
-    public IconShape Shape = IconShape.Portrait;
+    public IconShape Shape = IconShape.StyleDefault;
     public IconAnchor Anchor = IconAnchor.BottomRight;
 
     /// <summary>Line the icons up just outside the frame's edge instead of inside it.</summary>

@@ -427,6 +427,10 @@ public sealed partial class OptionsWindow : Window
             Ui.Slider("Border size", ref s.BorderSize, 0, 4);
             Ui.Slider("Corner rounding", ref s.Rounding, 0f, 12f, "%.0f", "Rounded corners turn off the bar gradient.");
             Ui.Slider("Shadow size", ref s.ShadowSize, 0, 8, "A soft drop shadow behind every frame. 0 turns it off.");
+            if (Ui.Enum("Status icon shape", ref s.IconShape, "Buff and debuff icons everywhere: Portrait is the game's default 3:4 icon, Square crops it like WoW's, Round crops it to a circle. Elements set to Style Default follow this.") && s.IconShape == IconShape.StyleDefault)
+            {
+                s.IconShape = IconShape.Portrait;
+            }
             Ui.Color("Shadow colour", ref s.ShadowColor);
 
             Ui.Card("Bars");
@@ -737,7 +741,7 @@ public sealed partial class OptionsWindow : Window
         Ui.Toggle($"Show {(debuffs ? "debuffs" : "buffs")}", ref s.Enabled);
         Ui.Toggle("Only mine", ref s.OnlyMine, debuffs ? "Only debuffs you applied." : "Only buffs you put on them.");
         Ui.Slider("Icons per member", ref s.Max, 1, 10);
-        Ui.Enum("Shape", ref s.Shape, "Portrait is the game's 3:4 icon; Square and Round crop its middle.");
+        Ui.Enum("Shape", ref s.Shape, "Style Default follows the Style page. Portrait is the game's default 3:4 icon; Square and Round crop its middle.");
         Ui.Slider("Size", ref s.Size, 8f, 64f, "%.0f", "Icon height in pixels.");
         Ui.Enum("Position", ref s.Anchor, "The point of the frame the icons line up against.");
         Ui.Toggle("Outside the frame", ref s.Outside, "Beside the frame (or above/below it for Top and Bottom) instead of inside.");
@@ -897,6 +901,7 @@ public sealed partial class OptionsWindow : Window
             Ui.Toggle("Right-click to remove", ref s.RightClickToRemove, "Right-click a buff to click it off, like the default status bar.");
         }
 
+        Ui.Enum("Shape", ref s.Shape, "Style Default follows the Style page. Portrait is the game's default 3:4 icon; Square and Round crop its middle.");
         Ui.Enum("Border", ref s.Border, "By Type colours debuffs red and cleansable ones purple.");
         Ui.Enum("Timer position", ref s.TimerPosition);
         Ui.Slider("Timer font size", ref s.TimerFontSize, 0, 40, "0 uses the small font size from the Style page.");

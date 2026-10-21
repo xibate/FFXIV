@@ -70,7 +70,7 @@ public sealed class StatusIcons
             return;
         }
 
-        var size = IconSize(s);
+        var size = IconSize(s, ctx.Style);
         var grow = Grow(s);
         var step = grow switch
         {
@@ -89,10 +89,9 @@ public sealed class StatusIcons
         }
     }
 
-    public static Vector2 IconSize(StatusIconSettings s)
+    public static Vector2 IconSize(StatusIconSettings s, StyleSettings style)
     {
-        var height = MathF.Round(Math.Clamp(s.Size, 6f, 96f));
-        return s.Shape == IconShape.Portrait ? new Vector2(MathF.Round(height * 0.75f), height) : new Vector2(height, height);
+        return IconShapes.Size(IconShapes.Resolve(s.Shape, style), Math.Clamp(s.Size, 6f, 96f));
     }
 
     private static int Column(IconAnchor a) => a switch
@@ -183,13 +182,9 @@ public sealed class StatusIcons
 
     private static void DrawIcon(DrawContext ctx, StatusIconSettings s, in AuraData aura, Vector2 min, Vector2 max)
     {
-        var dl = ctx.DrawList;
         var texture = Svc.TextureProvider.GetFromGameIcon(new GameIconLookup(aura.Icon)).GetWrapOrEmpty();
-        var white = ctx.Col(Vector4.One);
-
-        // Square and round icons crop the middle of the 3:4 status icon.
-        var uv0 = s.Shape == IconShape.Portrait ? Vector2.Zero : new Vector2(0f, 0.125f);
-        var uv1 = s.Shape == IconShape.Portrait ? Vector2.One : new Vector2(1f, 0.875f);
+        var shape = IconShapes.Resolve(s.Shape, ctx.Style);
+        IconShapes.Draw(ctx, texture, min, max, shape, Vector4.One);
 
         Vector4? outline = s.Border switch
         {
@@ -197,23 +192,9 @@ public sealed class StatusIcons
             AuraBorder.ByType => aura.CanDispel ? Colors.Rgb(0xB65CE6) : aura.IsDebuff ? Colors.Rgb(0xC8423C) : ctx.Style.Border,
             _ => null,
         };
-
-        if (s.Shape == IconShape.Round)
+        if (outline is { } line)
         {
-            var radius = (max.X - min.X) / 2f;
-            dl.AddImageRounded(texture.Handle, min, max, uv0, uv1, white, radius);
-            if (outline is { } ring)
-            {
-                dl.AddCircle((min + max) / 2f, radius + 0.5f, ctx.Col(ring), 24, 1.5f);
-            }
-        }
-        else
-        {
-            dl.AddImage(texture.Handle, min, max, uv0, uv1, white);
-            if (outline is { } line)
-            {
-                dl.AddRect(min - Vector2.One, max + Vector2.One, ctx.Col(line), 0f, default, 1f);
-            }
+            IconShapes.Outline(ctx, min, max, shape, line);
         }
 
         if (s.Timers && !aura.IsPermanent && aura.Remaining > 0f)

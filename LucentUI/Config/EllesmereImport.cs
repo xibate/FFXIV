@@ -421,6 +421,9 @@ public static class EllesmereImport
                 P.Style.Accent = color;
             }
 
+            // WoW aura icons are square; EllesmereUI layouts are sized for that.
+            P.Style.IconShape = IconShape.Square;
+
             if (Table(Get(profile, "fonts")) is { } fonts)
             {
                 if (Str(Get(fonts, "outlineMode")) is { } outline)
@@ -663,8 +666,8 @@ public static class EllesmereImport
             var padding = Num(Get(grid, "padding")) ?? Num(Get(auras, "padding" + kind)) ?? 5;
             var max = grid != null ? perRow * rows : (int)(Num(Get(auras, "max" + kind)) ?? defaultMax);
 
-            // WoW aura icons are square; FFXIV status icons are 3:4, so match the width.
-            s.IconHeight = MathF.Round((float)size * scale / 0.75f);
+            // WoW aura icons are square, and imported profiles draw status icons square too.
+            s.IconHeight = MathF.Round((float)size * scale);
             s.PerRow = perRow;
             s.MaxIcons = Math.Max(1, max);
             s.Spacing = (int)MathF.Round((float)padding * scale);
@@ -715,7 +718,7 @@ public static class EllesmereImport
             s.ShowDebuffs = showDebuffs;
             var prefix = showBuffs ? "buff" : "debuff";
             var size = Num(Get(target, prefix + "Size")) ?? 22;
-            s.IconHeight = MathF.Round((float)size * scale / 0.75f);
+            s.IconHeight = MathF.Round((float)size * scale);
             s.PerRow = Math.Max(1, (int)(Num(Get(target, prefix + "MaxPerRow")) ?? 8));
             s.MaxIcons = Math.Max(1, (showBuffs ? (int)(Num(Get(target, "maxBuffs")) ?? 8) : 0) + (showDebuffs ? (int)(Num(Get(target, "maxDebuffs")) ?? 8) : 0));
             s.Spacing = (int)MathF.Round((float)(Num(Get(target, prefix + "SpacingX")) ?? 1) * scale);
@@ -1244,7 +1247,7 @@ public static class EllesmereImport
         private void StatusIconsFrom(Func<string, object?> value, string prefix, StatusIconSettings s)
         {
             s.Enabled = Bool(value(prefix == "debuff" ? "showDebuffs" : "show" + prefix)) ?? true;
-            s.Shape = IconShape.Square; // WoW aura icons are square
+            s.Shape = IconShape.StyleDefault; // follows the profile's square icons (see Appearance)
             s.Size = MathF.Round((float)(Num(value(prefix + "Size")) ?? 18) * scale);
             s.Max = Math.Max(1, (int)(Num(value(prefix + "Cap")) ?? Num(value("debuffCap")) ?? 3));
             s.Spacing = Math.Max(0, (int)MathF.Round((float)(Num(value(prefix + "Spacing")) ?? 1) * scale));

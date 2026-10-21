@@ -25,7 +25,7 @@ Core systems, following EllesmereUI's ideas:
 
 - **Unlock Mode** (`/lucent unlock`): drag any element, snap to a grid, nudge with arrow keys (Shift for 10px), right-click to reset, or type exact coordinates in the toolbar. Double-click an element to open its settings.
 - **Settings like EllesmereUI's**: pages split into tabs, "Copy from..." another frame or bar, reset a page (Ctrl+click), and a live preview of every element (sample target, casts and party) while the settings window is open.
-- **One style page**: accent colour, borders, rounding, bar textures or bar styles (flat, gradient, glossy, inset, striped), drop shadows, fonts and every colour live in one place.
+- **One style page**: accent colour, borders, rounding, bar textures or bar styles (flat, gradient, glossy, inset, striped), drop shadows, fonts, the shape of buff and debuff icons (the game's default 3:4, square like WoW, or round; each element can override it) and every colour live in one place.
 - **Media library**: fonts (.ttf, .otf) and status bar textures (.tga, .blp, .png) from LucentUI's media folder and any folder you add. Add your WoW `Interface\AddOns` folder and SharedMedia packs (and EllesmereUI's own media) are available by the same names as in WoW, so imported profiles keep their font and textures. Every bar element can use its own texture.
 - **Profiles**: create, copy, rename, reset, and share them as text (export/import via clipboard). Assign a profile to each job and it loads when you switch.
 - **EllesmereUI import**: paste an EllesmereUI profile string (`!EUI_...`) and it is converted to a LucentUI profile (see below).

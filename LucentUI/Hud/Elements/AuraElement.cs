@@ -20,9 +20,6 @@ public enum AuraGroup
 /// <summary>A grid of status icons with timers.</summary>
 public sealed class AuraElement : HudElement
 {
-    // Status icons are 3:4 portrait images.
-    private const float IconAspect = 0.75f;
-
     private readonly AuraGroup group;
     private readonly List<AuraData> buffer = new();
 
@@ -74,7 +71,7 @@ public sealed class AuraElement : HudElement
     /// <summary>One icon's slot, including room for the timer when it sits below the icon.</summary>
     private static Vector2 CellSize(AuraSettings s, StyleSettings style)
     {
-        var icon = IconSize(s);
+        var icon = IconSize(s, style);
         if (s.ShowTimer && s.TimerPosition == TimerPosition.Below)
         {
             icon.Y += (s.TimerFontSize > 0 ? s.TimerFontSize : style.SmallFontSize) + 2;
@@ -101,7 +98,7 @@ public sealed class AuraElement : HudElement
         }
 
         var size = GetSize(ctx.Profile);
-        var icon = IconSize(s);
+        var icon = IconSize(s, ctx.Style);
         var cell = CellSize(s, ctx.Style);
         var (columns, _) = Grid(s);
         var count = Math.Min(auras.Count, Math.Max(1, s.MaxIcons));
@@ -131,7 +128,8 @@ public sealed class AuraElement : HudElement
     {
         // The game's status icons have transparent corners, so nothing is filled behind them.
         var texture = Svc.TextureProvider.GetFromGameIcon(new GameIconLookup(aura.Icon)).GetWrapOrEmpty();
-        ctx.DrawList.AddImage(texture.Handle, min, max, Vector2.Zero, Vector2.One, ctx.Col(Vector4.One));
+        var shape = IconShapes.Resolve(s.Shape, ctx.Style);
+        IconShapes.Draw(ctx, texture, min, max, shape, Vector4.One);
 
         Vector4? outline = s.Border switch
         {
@@ -141,7 +139,7 @@ public sealed class AuraElement : HudElement
         };
         if (outline is { } line)
         {
-            ctx.DrawList.AddRect(min - Vector2.One, max + Vector2.One, ctx.Col(line), 0f, default, 1f);
+            IconShapes.Outline(ctx, min, max, shape, line);
         }
 
         if (s.ShowTimer && s.TimerPosition != TimerPosition.Hidden && !aura.IsPermanent && aura.Remaining > 0f)
@@ -176,11 +174,8 @@ public sealed class AuraElement : HudElement
         }
     }
 
-    private static Vector2 IconSize(AuraSettings s)
-    {
-        var height = MathF.Round(Math.Clamp(s.IconHeight, 12f, 96f));
-        return new Vector2(MathF.Round(height * IconAspect), height);
-    }
+    private static Vector2 IconSize(AuraSettings s, StyleSettings style) =>
+        IconShapes.Size(IconShapes.Resolve(s.Shape, style), Math.Clamp(s.IconHeight, 12f, 96f));
 
     private static (int Columns, int Rows) Grid(AuraSettings s)
     {
