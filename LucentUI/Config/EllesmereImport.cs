@@ -354,6 +354,7 @@ public static class EllesmereImport
             if (Table(Get(addons, RaidFrames)) is { } raid)
             {
                 PartyModule(raid);
+                AllianceModule(raid);
             }
 
             if (addons?.ContainsKey(Nameplates) == true)
@@ -1193,33 +1194,9 @@ public static class EllesmereImport
             s.ShowPower = (Bool(PartyValue("showPowerBar")) ?? true) && anyPower;
             s.PowerHeight = Math.Max(1, (int)MathF.Round((float)(Num(PartyValue("powerHeight")) ?? 4) * scale));
 
-            // Name: anchored in a corner or side of the health bar with 2px padding (EllesmereUI's raid frame layout).
-            var nameSize = Num(PartyValue("nameSize")) ?? 12;
-            var namePosition = Str(PartyValue("namePosition")) ?? "topleft";
-            var nameText = namePosition == "none" ? string.Empty : "{name}";
-            var nameLength = Num(Get(raid, "party_nameMaxLength"));
-            if (nameText.Length > 0 && nameLength is > 0 and < 40)
-            {
-                nameText = $"{{name:{(int)nameLength.Value}}}";
-            }
-
-            var nameStyle = SlotStyle(namePosition, nameSize, Num(PartyValue("nameOffsetX")) ?? 0, Num(PartyValue("nameOffsetY")) ?? 0, s.Size.Y);
-
-            // Health text: none / percent / deficit / current, centred by default.
-            var healthText = (Str(PartyValue("healthTextMode")) ?? "none") switch
-            {
-                "percent" => "{hp:pct}%",
-                "deficit" => "{hp:deficit}",
-                "current" or "health" => "{hp}",
-                "both" or "currentpercent" => "{hp} | {hp:pct}%",
-                _ => string.Empty,
-            };
-            var healthPosition = Str(PartyValue("healthTextPosition")) ?? "center";
-            var healthStyle = SlotStyle(healthPosition, Num(PartyValue("healthTextSize")) ?? 9, Num(PartyValue("healthTextOffsetX")) ?? 0, Num(PartyValue("healthTextOffsetY")) ?? 0, s.Size.Y);
-
-            s.LeftText = s.CenterText = s.RightText = string.Empty;
-            AssignPartySlot(s, namePosition, nameText, nameStyle);
-            AssignPartySlot(s, healthPosition, healthText, healthStyle);
+            var texts = FrameTexts(PartyValue, s.Size.Y, Num(Get(raid, "party_nameMaxLength")));
+            (s.LeftText, s.LeftStyle, s.CenterText, s.CenterStyle, s.RightText, s.RightStyle) = texts;
+            StatusIconsFrom(PartyValue, "debuff", s.Debuffs);
 
             // EllesmereUI's party container holds five frames; place the first one where it was.
             var container = s.Horizontal
@@ -1227,6 +1204,127 @@ public static class EllesmereImport
                 : new Vector2(s.Size.X, 5 * s.Size.Y + 4 * s.Spacing);
             Place("RF_PartyFrames", "party", container, Position(Table(Get(raid, "partyUnlockPos")), container), null);
             converted.Add("party frames");
+        }
+
+        /// <summary>
+        /// Name and health text of a raid or party frame (name and health positions, sizes and offsets) mapped onto
+        /// left / centre / right text slots.
+        /// </summary>
+        private (string Left, TextStyle LeftStyle, string Center, TextStyle CenterStyle, string Right, TextStyle RightStyle) FrameTexts(Func<string, object?> value, float frameHeight, double? nameLength)
+        {
+            // Name: anchored in a corner or side of the health bar with 2px padding (EllesmereUI's raid frame layout).
+            var namePosition = Str(value("namePosition")) ?? "topleft";
+            var nameText = namePosition == "none" ? string.Empty : "{name}";
+            if (nameText.Length > 0 && nameLength is > 0 and < 40)
+            {
+                nameText = $"{{name:{(int)nameLength.Value}}}";
+            }
+
+            var nameStyle = SlotStyle(namePosition, Num(value("nameSize")) ?? 10, Num(value("nameOffsetX")) ?? 0, Num(value("nameOffsetY")) ?? 0, frameHeight);
+
+            // Health text: none / percent / number / deficit, centred by default.
+            var healthText = (Str(value("healthTextMode")) ?? "none") switch
+            {
+                "percent" => "{hp:pct}%",
+                "deficit" => "{hp:deficit}",
+                "number" or "current" or "health" => "{hp}",
+                "both" or "currentpercent" => "{hp} | {hp:pct}%",
+                _ => string.Empty,
+            };
+            var healthPosition = Str(value("healthTextPosition")) ?? "center";
+            var healthStyle = SlotStyle(healthPosition, Num(value("healthTextSize")) ?? 9, Num(value("healthTextOffsetX")) ?? 0, Num(value("healthTextOffsetY")) ?? 0, frameHeight);
+
+            var slots = new PartySettings { LeftText = string.Empty, CenterText = string.Empty, RightText = string.Empty };
+            AssignPartySlot(slots, namePosition, nameText, nameStyle);
+            AssignPartySlot(slots, healthPosition, healthText, healthStyle);
+            return (slots.LeftText, slots.LeftStyle, slots.CenterText, slots.CenterStyle, slots.RightText, slots.RightStyle);
+        }
+
+        /// <summary>EllesmereUI's debuff (or other aura) indicator settings → LucentUI status icon settings.</summary>
+        private void StatusIconsFrom(Func<string, object?> value, string prefix, StatusIconSettings s)
+        {
+            s.Enabled = Bool(value(prefix == "debuff" ? "showDebuffs" : "show" + prefix)) ?? true;
+            s.Shape = IconShape.Square; // WoW aura icons are square
+            s.Size = MathF.Round((float)(Num(value(prefix + "Size")) ?? 18) * scale);
+            s.Max = Math.Max(1, (int)(Num(value(prefix + "Cap")) ?? Num(value("debuffCap")) ?? 3));
+            s.Spacing = Math.Max(0, (int)MathF.Round((float)(Num(value(prefix + "Spacing")) ?? 1) * scale));
+            s.Offset = new Vector2(MathF.Round((float)(Num(value(prefix + "OffsetX")) ?? 0) * scale), MathF.Round(-(float)(Num(value(prefix + "OffsetY")) ?? 0) * scale));
+            s.Timers = Bool(value(prefix + "ShowDurText")) ?? false;
+            if (Num(value(prefix + "DurTextSize")) is { } timerSize)
+            {
+                s.TimerFontSize = (int)MathF.Round((float)timerSize * scale);
+            }
+
+            s.Outside = false;
+            s.Anchor = (Str(value(prefix + "Position")) ?? "bottomright").ToLowerInvariant() switch
+            {
+                "topleft" => IconAnchor.TopLeft,
+                "top" => IconAnchor.Top,
+                "topright" => IconAnchor.TopRight,
+                "left" => IconAnchor.Left,
+                "center" => IconAnchor.Center,
+                "right" => IconAnchor.Right,
+                "bottomleft" => IconAnchor.BottomLeft,
+                "bottom" => IconAnchor.Bottom,
+                _ => IconAnchor.BottomRight,
+            };
+            s.Grow = (Str(value(prefix + "GrowDirection")) ?? "auto").ToUpperInvariant() switch
+            {
+                "LEFT" => IconGrow.Left,
+                "RIGHT" => IconGrow.Right,
+                "UP" => IconGrow.Up,
+                "DOWN" => IconGrow.Down,
+                _ => IconGrow.Auto,
+            };
+            s.Border = AuraBorder.ByType;
+        }
+
+        // ── Raid frames → alliance frames ────────────────────────────────────
+
+        /// <summary>
+        /// EllesmereUI's raid frames become the alliance frames: frame size (the 25-player size if set), spacing,
+        /// growth, text, texture, colours, debuff icons and position.
+        /// </summary>
+        private void AllianceModule(Dictionary<object, object?> raid)
+        {
+            var s = P.Alliance;
+            object? RaidValue(string key) => Get(raid, key);
+
+            var sizes = Table(Get(raid, "raidSizeOverrides"));
+            var override25 = sizes != null && sizes.TryGetValue(25d, out var bySize) ? Table(bySize) : Table(Get(sizes, "25"));
+            var width = Num(Get(override25, "width")) ?? Num(Get(raid, "frameWidth")) ?? 125;
+            var height = Num(Get(override25, "height")) ?? Num(Get(raid, "frameHeight")) ?? 60;
+            s.Size = Scaled(width, height);
+            s.Spacing = Math.Max(0, (int)MathF.Round((float)(Num(Get(raid, "cellSpacing")) ?? -1) * scale) + 1);
+            s.GroupSpacing = Math.Max(0, (int)MathF.Round((float)(Num(Get(raid, "groupSpacing")) ?? -1) * scale) + 1);
+
+            // Members along unitGrowth, parties along groupGrowth.
+            var unitGrowth = (Str(Get(raid, "unitGrowth")) ?? "DOWN").ToUpperInvariant();
+            var groupGrowth = (Str(Get(raid, "groupGrowth")) ?? "RIGHT").ToUpperInvariant();
+            s.HorizontalMembers = unitGrowth is "LEFT" or "RIGHT";
+            s.SideBySide = groupGrowth.Contains("RIGHT") || groupGrowth.Contains("LEFT");
+            if (s.HorizontalMembers && s.SideBySide)
+            {
+                s.SideBySide = false;
+            }
+
+            s.Texture = TextureName(RaidValue("healthBarTexture"));
+            s.ColorMode = (Str(RaidValue("healthColorMode")) ?? "class") switch
+            {
+                "dark" => HealthColorMode.Dark,
+                "custom" => HealthColorMode.Flat,
+                _ => HealthColorMode.Job,
+            };
+
+            var texts = FrameTexts(RaidValue, s.Size.Y, Num(Get(raid, "nameMaxLength")));
+            (s.LeftText, s.LeftStyle, s.CenterText, s.CenterStyle, s.RightText, s.RightStyle) = texts;
+            StatusIconsFrom(RaidValue, "debuff", s.Debuffs);
+            s.ShowJobIcon = false;
+
+            // The raid container's centre stays where it was.
+            var box = new Hud.Elements.AllianceFramesElement().GetSize(P);
+            Place("RF_RaidFrames", "alliance", box, Position(Table(Get(raid, "unlockPos")), box), null);
+            converted.Add("alliance frames (from raid frames)");
         }
 
         /// <summary>

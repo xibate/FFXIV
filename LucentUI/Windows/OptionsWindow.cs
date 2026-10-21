@@ -668,7 +668,7 @@ public sealed partial class OptionsWindow : Window
         Ui.PageHeader("Party", "Party frames with role sorting and range fading.");
         ModuleSwitch("Party frames", ref Plugin.Profiles.Current.Modules.PartyFrames);
         CopyAndReset("party", s, () => new Profile().Party);
-        var tab = Ui.Tabs("party", "Layout", "Health", "Text", "Trackers", "Buffs", "Visibility");
+        var tab = Ui.Tabs("party", "Layout", "Health", "Text", "Trackers", "Buffs & Debuffs", "Visibility");
 
         if (Ui.Tab(tab, 0))
         {
@@ -716,28 +716,12 @@ public sealed partial class OptionsWindow : Window
             Ui.Toggle("Only if I can cleanse", ref s.CleansableOnlyIfICanCleanse, "Healers and bards.");
             Ui.Color("Cleansable colour", ref s.CleansableColor);
             Ui.Toggle("Ready check", ref s.ShowReadyCheck);
-            Ui.Toggle("Debuff icons", ref s.ShowDebuffs);
-            Ui.Slider("Debuffs per member", ref s.MaxDebuffs, 1, 8);
-            Ui.Slider("Debuff icon height", ref s.DebuffIconHeight, 10f, 64f, "%.0f");
         }
 
         if (Ui.Tab(tab, 4))
         {
-            Ui.Card("Party Buffs", "Buff icons inside each member's frame, like EllesmereUI's raid frame indicators.");
-            Ui.Toggle("Show buffs", ref s.ShowBuffs);
-            Ui.Toggle("Only mine", ref s.BuffsOnlyMine, "Only buffs you put on them: your regens, shields, mitigation...");
-            Ui.Enum("Corner", ref s.BuffCorner);
-            Ui.Slider("Buffs per member", ref s.MaxBuffs, 1, 10);
-            Ui.Slider("Icon height", ref s.BuffIconHeight, 8f, 48f, "%.0f");
-            Ui.Toggle("Timers", ref s.BuffTimers);
-            Ui.Enum("Filter", ref s.BuffFilter, "Track only listed buffs (e.g. Regen, Galvanize, Kerachole), or hide listed ones.");
-            if (s.BuffFilter != ListFilter.None)
-            {
-                var source = Svc.TargetManager.Target ?? Svc.ObjectTable.LocalPlayer;
-                StatusListEditor("Party Buff List", s.BuffIds, source, false,
-                    (s.BuffFilter == ListFilter.OnlyListed ? "Only these buffs are shown. " : "These buffs are hidden. ") +
-                    "Target a party member to add buffs that are on them right now.");
-            }
+            DrawStatusIcons("Party Buffs", s.Buffs, false, "Buff icons on each member, like EllesmereUI's raid frame indicators. By default only yours: regens, shields, mitigation.");
+            DrawStatusIcons("Party Debuffs", s.Debuffs, true, "Debuff icons on each member.");
         }
 
         if (Ui.Tab(tab, 5))
@@ -746,12 +730,39 @@ public sealed partial class OptionsWindow : Window
         }
     }
 
+    /// <summary>Settings for buff or debuff icons on member frames (party, alliance).</summary>
+    private static void DrawStatusIcons(string title, StatusIconSettings s, bool debuffs, string description)
+    {
+        Ui.Card(title, description);
+        Ui.Toggle($"Show {(debuffs ? "debuffs" : "buffs")}", ref s.Enabled);
+        Ui.Toggle("Only mine", ref s.OnlyMine, debuffs ? "Only debuffs you applied." : "Only buffs you put on them.");
+        Ui.Slider("Icons per member", ref s.Max, 1, 10);
+        Ui.Enum("Shape", ref s.Shape, "Portrait is the game's 3:4 icon; Square and Round crop its middle.");
+        Ui.Slider("Size", ref s.Size, 8f, 64f, "%.0f", "Icon height in pixels.");
+        Ui.Enum("Position", ref s.Anchor, "The point of the frame the icons line up against.");
+        Ui.Toggle("Outside the frame", ref s.Outside, "Beside the frame (or above/below it for Top and Bottom) instead of inside.");
+        Ui.Enum("Grow", ref s.Grow, "Auto grows away from the side the icons are on.");
+        Ui.Offset("Offset", ref s.Offset);
+        Ui.Slider("Spacing", ref s.Spacing, 0, 12);
+        Ui.Enum("Border", ref s.Border, "By Type colours debuffs red and cleansable ones purple.");
+        Ui.Toggle("Timers", ref s.Timers);
+        Ui.Slider("Timer font size", ref s.TimerFontSize, 0, 40, "0 uses the small font size from the Style page.");
+        Ui.Enum("Filter", ref s.Filter, debuffs ? "Show only listed debuffs, or hide listed ones." : "Track only listed buffs (e.g. Regen, Galvanize, Kerachole), or hide listed ones.");
+        if (s.Filter != ListFilter.None)
+        {
+            var source = Svc.TargetManager.Target ?? Svc.ObjectTable.LocalPlayer;
+            StatusListEditor(title + " List", s.Ids, source, false,
+                (s.Filter == ListFilter.OnlyListed ? "Only these are shown. " : "These are hidden. ") +
+                "Target a party member to add statuses that are on them right now.");
+        }
+    }
+
     private static void DrawAlliance(AllianceSettings s)
     {
         Ui.PageHeader("Alliance", "The two other parties in 24-player alliance raids. Shows only in an alliance.");
         ModuleSwitch("Alliance frames", ref Plugin.Profiles.Current.Modules.Alliance);
         CopyAndReset("alliance", s, () => new Profile().Alliance);
-        var tab = Ui.Tabs("alliance", "Layout", "Text", "Visibility");
+        var tab = Ui.Tabs("alliance", "Layout", "Text", "Buffs & Debuffs", "Visibility");
 
         if (Ui.Tab(tab, 0))
         {
@@ -761,6 +772,7 @@ public sealed partial class OptionsWindow : Window
             Ui.Slider("Spacing", ref s.Spacing, 0, 20);
             Ui.Slider("Space between parties", ref s.GroupSpacing, 0, 60);
             Ui.Toggle("Parties side by side", ref s.SideBySide, "Off puts one party above the other.");
+            Ui.Toggle("Members in a row", ref s.HorizontalMembers, "Each party's members side by side instead of in a column.");
             Ui.MediaPicker("Bar texture", ref s.Texture, false, "Profile texture", "Empty uses the texture from the Style page.");
             Ui.Enum("Health colour", ref s.ColorMode);
             Ui.Toggle("Job icon", ref s.ShowJobIcon);
@@ -771,10 +783,17 @@ public sealed partial class OptionsWindow : Window
         if (Ui.Tab(tab, 1))
         {
             DrawTextSlot("Alliance Left Text", ref s.LeftText, s.LeftStyle);
+            DrawTextSlot("Alliance Center Text", ref s.CenterText, s.CenterStyle);
             DrawTextSlot("Alliance Right Text", ref s.RightText, s.RightStyle);
         }
 
         if (Ui.Tab(tab, 2))
+        {
+            DrawStatusIcons("Alliance Buffs", s.Buffs, false, "Buff icons on alliance members (only while they are near enough to be loaded).");
+            DrawStatusIcons("Alliance Debuffs", s.Debuffs, true, "Debuff icons on alliance members (only while they are near enough to be loaded).");
+        }
+
+        if (Ui.Tab(tab, 3))
         {
             DrawVisibility("Alliance", s.Visibility);
         }

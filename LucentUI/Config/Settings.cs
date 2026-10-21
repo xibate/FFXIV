@@ -316,20 +316,11 @@ public sealed class PartySettings
     public Vector4 CleansableColor = Colors.Rgb(0xB65CE6);
     public bool ShowReadyCheck = true;
 
-    // Buff icons on each member (e.g. your HoTs and shields)
-    public bool ShowBuffs = true;
-    public bool BuffsOnlyMine = true;
-    public ListFilter BuffFilter = ListFilter.None;
-    public List<uint> BuffIds = new();
-    public int MaxBuffs = 4;
-    public float BuffIconHeight = 20f;
-    public PartyIconCorner BuffCorner = PartyIconCorner.BottomRight;
-    public bool BuffTimers = true;
+    /// <summary>Buff icons on each member: by default your own (HoTs, shields, mitigation).</summary>
+    public StatusIconSettings Buffs = new() { OnlyMine = true, Max = 4, Size = 20f, Anchor = IconAnchor.BottomRight };
 
-    // Debuff icons on each member
-    public bool ShowDebuffs = true;
-    public int MaxDebuffs = 3;
-    public float DebuffIconHeight = 22f;
+    /// <summary>Debuff icons on each member: by default just outside the frame on the right.</summary>
+    public StatusIconSettings Debuffs = new() { Max = 3, Size = 22f, Anchor = IconAnchor.Right, Outside = true, Border = AuraBorder.ByType };
 
     public VisibilitySettings Visibility = new();
 }
@@ -484,13 +475,65 @@ public enum GameNameplateMode
     HideAll,
 }
 
-/// <summary>Where buff icons sit on a party member, growing inwards from that corner.</summary>
-public enum PartyIconCorner
+/// <summary>A point on a frame that status icons are lined up against.</summary>
+public enum IconAnchor
 {
-    BottomRight,
-    BottomLeft,
-    TopRight,
     TopLeft,
+    Top,
+    TopRight,
+    Left,
+    Center,
+    Right,
+    BottomLeft,
+    Bottom,
+    BottomRight,
+}
+
+/// <summary>Which way a row of status icons grows; Auto grows away from the anchor's side.</summary>
+public enum IconGrow
+{
+    Auto,
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+/// <summary>The shape status icons are drawn in.</summary>
+public enum IconShape
+{
+    /// <summary>The game's own 3:4 status icon.</summary>
+    Portrait,
+
+    /// <summary>Cropped to a square, like WoW's aura icons.</summary>
+    Square,
+
+    /// <summary>Cropped to a circle.</summary>
+    Round,
+}
+
+/// <summary>Buff or debuff icons on a party or alliance member.</summary>
+public sealed class StatusIconSettings
+{
+    public bool Enabled = true;
+    public bool OnlyMine = false;
+    public ListFilter Filter = ListFilter.None;
+    public List<uint> Ids = new();
+    public int Max = 3;
+
+    /// <summary>Icon height in pixels (square and round icons are as wide as they are high).</summary>
+    public float Size = 20f;
+    public IconShape Shape = IconShape.Portrait;
+    public IconAnchor Anchor = IconAnchor.BottomRight;
+
+    /// <summary>Line the icons up just outside the frame's edge instead of inside it.</summary>
+    public bool Outside = false;
+    public IconGrow Grow = IconGrow.Auto;
+    public Vector2 Offset = Vector2.Zero;
+    public int Spacing = 2;
+    public bool Timers = true;
+    public int TimerFontSize = 0;
+    public AuraBorder Border = AuraBorder.None;
 }
 
 /// <summary>The order of the role groups when party frames are sorted by role.</summary>
@@ -582,6 +625,14 @@ public sealed class AllianceSettings
     public bool RangeFade = true;
     public bool Interactive = true;
     public bool ShowJobIcon = true;
+
+    /// <summary>Put each party's members in a row instead of a column.</summary>
+    public bool HorizontalMembers = false;
+    public string CenterText = string.Empty;
+    public TextStyle CenterStyle = new();
+
+    public StatusIconSettings Buffs = new() { Enabled = false, OnlyMine = true, Max = 2, Size = 16f, Anchor = IconAnchor.BottomRight };
+    public StatusIconSettings Debuffs = new() { Max = 2, Size = 16f, Anchor = IconAnchor.Right, Border = AuraBorder.ByType };
     public VisibilitySettings Visibility = new();
 }
 

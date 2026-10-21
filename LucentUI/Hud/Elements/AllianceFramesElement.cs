@@ -18,6 +18,8 @@ public sealed unsafe class AllianceFramesElement : HudElement
     private const float MaxRange = 40f;
 
     private readonly List<UnitData>[] groups = { new(PerGroup), new(PerGroup) };
+    private readonly StatusIcons buffIcons = new();
+    private readonly StatusIcons debuffIcons = new();
 
     public override string Id => "alliance";
 
@@ -38,8 +40,9 @@ public sealed unsafe class AllianceFramesElement : HudElement
             : new Vector2(group.X, group.Y * Groups + s.GroupSpacing);
     }
 
-    private static Vector2 GroupSize(AllianceSettings s) =>
-        new(s.Size.X, PerGroup * s.Size.Y + (PerGroup - 1) * s.Spacing);
+    private static Vector2 GroupSize(AllianceSettings s) => s.HorizontalMembers
+        ? new(PerGroup * s.Size.X + (PerGroup - 1) * s.Spacing, s.Size.Y)
+        : new(s.Size.X, PerGroup * s.Size.Y + (PerGroup - 1) * s.Spacing);
 
     public override void Draw(DrawContext ctx, Vector2 pos)
     {
@@ -58,7 +61,7 @@ public sealed unsafe class AllianceFramesElement : HudElement
             for (var i = 0; i < members.Count; i++)
             {
                 var unit = members[i];
-                var memberPos = groupPos + new Vector2(0, i * (s.Size.Y + s.Spacing));
+                var memberPos = groupPos + (s.HorizontalMembers ? new Vector2(i * (s.Size.X + s.Spacing), 0) : new Vector2(0, i * (s.Size.Y + s.Spacing)));
                 var hovered = !ctx.Preview && s.Interactive && ctx.Input.HandleUnit(memberPos, memberPos + s.Size, unit.Object, ctx.General);
                 var isTarget = target != null && unit.Object != null && target.Address == unit.Object.Address;
 
@@ -67,9 +70,10 @@ public sealed unsafe class AllianceFramesElement : HudElement
                     Texture = s.Texture,
                     ShowPower = false,
                     LeftText = s.LeftText,
-                    CenterText = string.Empty,
+                    CenterText = s.CenterText,
                     RightText = s.RightText,
                     LeftStyle = s.LeftStyle,
+                    CenterStyle = s.CenterStyle,
                     RightStyle = s.RightStyle,
                     ColorMode = s.ColorMode,
                     ShowShield = true,
@@ -79,6 +83,13 @@ public sealed unsafe class AllianceFramesElement : HudElement
                     Icon = s.ShowJobIcon && unit.JobId > 0 ? 62000 + unit.JobId : 0,
                     SmoothKey = DrawContext.Key(Id, (ulong)(g * 100 + i) ^ ((ulong)unit.Name.GetHashCode() << 8)),
                 });
+
+                if (!unit.IsDead)
+                {
+                    buffIcons.Draw(ctx, s.Buffs, unit.Object, false, memberPos, s.Size);
+                }
+
+                debuffIcons.Draw(ctx, s.Debuffs, unit.Object, true, memberPos, s.Size);
             }
         }
     }
