@@ -24,7 +24,7 @@ public sealed class MediaLibrary : IDisposable
 
     // LSM:Register("statusbar", "Name", [[Interface\AddOns\...]]) and LSM.MediaType.STATUSBAR forms.
     private static readonly Regex Registration = new(
-        @"Register\s*\(\s*(?:[""'](?<kind>statusbar|font|background|border)[""']|(?:[\w.]*\.)?MediaType\.(?<kind>STATUSBAR|FONT|BACKGROUND|BORDER))\s*,\s*[""'](?<name>[^""'\r\n]+)[""']\s*,\s*(?:\[=*\[(?<path>[^\]\r\n]+)\]=*\]|""(?<path>[^""\r\n]+)""|'(?<path>[^'\r\n]+)')",
+        @"Register\s*\(\s*(?:[""'](?<kind>statusbar|font|background|border)[""']|(?:[\w.]*[._])?MediaType[._](?<kind>STATUSBAR|FONT|BACKGROUND|BORDER))\s*,\s*[""'](?<name>[^""'\r\n]+)[""']\s*,\s*(?:\[=*\[(?<path>[^\]\r\n]+)\]=*\]|""(?<path>[^""\r\n]+)""|'(?<path>[^'\r\n]+)')",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly object gate = new();
@@ -111,6 +111,7 @@ public sealed class MediaLibrary : IDisposable
                 // The folder is only a convenience.
             }
 
+            var unpacked = ExtractZips(DefaultFolder);
             var (newFonts, newTextures, files, missing) = Scan(list, cancel.Token);
             if (cancel.IsCancellationRequested)
             {
@@ -135,11 +136,113 @@ public sealed class MediaLibrary : IDisposable
                 loaded.Clear();
             }
 
-            Status = $"{newFonts.Count} fonts and {newTextures.Count} textures found in {files:N0} files." +
+            Status = (unpacked > 0 ? $"Unpacked {unpacked} media pack(s). " : string.Empty) +
+                     $"{newFonts.Count} fonts and {newTextures.Count} textures found in {files:N0} files." +
                      (missing.Count > 0 ? " Not found: " + string.Join(", ", missing) : string.Empty);
             Scanning = false;
             Version++;
         }, cancel.Token);
+    }
+
+    private static readonly string[] PackExtensions = { ".ttf", ".otf", ".tga", ".blp", ".png", ".jpg", ".jpeg", ".lua" };
+
+    /// <summary>
+    /// Unpacks media pack zips (e.g. NaowhUI_Media.zip or an addon's media folder) dropped into
+    /// <paramref name="folder"/>: their fonts, textures and Lua registrations go to AddOns/&lt;pack&gt;/ there, so
+    /// SharedMedia names resolve as in WoW. Each zip is unpacked once (again when it changes). Returns how many
+    /// were unpacked now.
+    /// </summary>
+    public static int ExtractZips(string folder)
+    {
+        if (!Directory.Exists(folder))
+        {
+            return 0;
+        }
+
+        var count = 0;
+        foreach (var zip in Directory.EnumerateFiles(folder, "*.zip", SearchOption.TopDirectoryOnly))
+        {
+            try
+            {
+                if (ExtractZip(zip, Path.Combine(folder, "AddOns")))
+                {
+                    count++;
+                }
+            }
+            catch (Exception ex)
+            {
+                Svc.Log.Warning($"Could not unpack media pack {zip}: {ex.Message}");
+            }
+        }
+
+        return count;
+    }
+
+    private static bool ExtractZip(string zipPath, string addOnsFolder)
+    {
+        var info = new FileInfo(zipPath);
+        using var archive = System.IO.Compression.ZipFile.OpenRead(zipPath);
+
+        // The pack's folder name: its .toc (at the root or in one top folder), else the zip's own name.
+        string? prefix = null;
+        string? name = null;
+        foreach (var entry in archive.Entries)
+        {
+            var parts = entry.FullName.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length is 1 or 2 && parts[^1].EndsWith(".toc", StringComparison.OrdinalIgnoreCase) && !parts[^1].StartsWith("Lib", StringComparison.OrdinalIgnoreCase))
+            {
+                name = Path.GetFileNameWithoutExtension(parts[^1]);
+                prefix = parts.Length == 2 ? parts[0] + "/" : string.Empty;
+                break;
+            }
+        }
+
+        name ??= Path.GetFileNameWithoutExtension(zipPath);
+        prefix ??= string.Empty;
+        var target = Path.GetFullPath(Path.Combine(addOnsFolder, name));
+        var marker = Path.Combine(target, ".lucentui-unpacked");
+        var stamp = $"{info.Length}:{info.LastWriteTimeUtc.Ticks}";
+        if (File.Exists(marker) && File.ReadAllText(marker) == stamp)
+        {
+            return false;
+        }
+
+        Directory.CreateDirectory(target);
+        foreach (var entry in archive.Entries)
+        {
+            var path = entry.FullName.Replace('\\', '/');
+            if (entry.Length == 0 || !PackExtensions.Contains(Path.GetExtension(path).ToLowerInvariant()))
+            {
+                continue;
+            }
+
+            if (prefix.Length > 0)
+            {
+                if (!path.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                path = path[prefix.Length..];
+            }
+
+            // Never write outside the pack's folder.
+            var destination = Path.GetFullPath(Path.Combine(target, path));
+            if (!destination.StartsWith(target + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            using (var source = entry.Open())
+            using (var output = File.Create(destination))
+            {
+                source.CopyTo(output);
+            }
+        }
+
+        File.WriteAllText(marker, stamp);
+        return true;
     }
 
     public static (Dictionary<string, string> Fonts, Dictionary<string, string> Textures, int Files, List<string> Missing) Scan(List<string> folders, CancellationToken cancel)

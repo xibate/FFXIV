@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.20.0.0</Version>
+    <Version>0.21.0.0</Version>
     <!-- Manifest fields picked up by DalamudPackager -->
     <Author>xibate</Author>
     <Name>LucentUI</Name>

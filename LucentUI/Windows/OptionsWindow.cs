@@ -609,11 +609,37 @@ public sealed partial class OptionsWindow : Window
     }
 
     private string newMediaFolder = string.Empty;
+    private string newMediaPack = string.Empty;
+    private string mediaPackMessage = string.Empty;
 
     private void DrawMedia()
     {
         var media = Plugin.Media;
         var folders = Plugin.Config.MediaFolders;
+
+        Ui.Card("Media Packs", "The easiest way: add a media pack zip (for example NaowhUI_Media.zip or a zip of EllesmereUI's media folder). It is unpacked into LucentUI's media folder on this computer, and its fonts and textures are used by their WoW names. You can also drop zips into the LucentUI media folder yourself.");
+        Ui.Text("Media pack zip", ref newMediaPack, "The full path of the .zip file.", "e.g. C:\\Users\\you\\Downloads\\NaowhUI_Media.zip");
+        if (Ui.Button("Add pack", "Add media pack"))
+        {
+            var source = newMediaPack.Trim().Trim('"');
+            try
+            {
+                System.IO.Directory.CreateDirectory(media.DefaultFolder);
+                System.IO.File.Copy(source, System.IO.Path.Combine(media.DefaultFolder, System.IO.Path.GetFileName(source)), overwrite: true);
+                mediaPackMessage = "Added " + System.IO.Path.GetFileName(source) + ". Unpacking...";
+                newMediaPack = string.Empty;
+                media.Rescan(folders);
+            }
+            catch (Exception ex)
+            {
+                mediaPackMessage = "Could not add it: " + ex.Message;
+            }
+        }
+
+        if (mediaPackMessage.Length > 0)
+        {
+            Ui.Button("Pack", mediaPackMessage);
+        }
 
         Ui.Card("Media Folders", "Fonts (.ttf, .otf) and bar textures (.tga, .blp, .png) are found in these folders and everything below them. Add your WoW Interface\\AddOns folder to use SharedMedia packs and EllesmereUI's media by the same names as in WoW.");
         Ui.Button("Status", media.Scanning ? "Scanning..." : media.Status);
@@ -1202,7 +1228,7 @@ public sealed partial class OptionsWindow : Window
             Report(profiles.Delete(profiles.CurrentName), "Profile deleted", "You cannot delete your last profile.");
         }
 
-        Ui.Card("Lucent Profile", "The built-in Lucent layout (EllesmereUI style), scaled to your screen. Its font and bar textures show when they are in your media folders (Style > Media); otherwise the game font and bar style are used.");
+        Ui.Card("Lucent Profile", "The built-in Lucent layout (EllesmereUI style), scaled to your screen. It uses the Naowh font and textures from NaowhUI_Media: add that zip under Style > Media > Media Packs to see them; otherwise the game font and bar style are used.");
         if (Ui.Button("Lucent", "Add the Lucent profile"))
         {
             var added = profiles.AddLucent(Plugin.ScreenHeight, activate: true);
