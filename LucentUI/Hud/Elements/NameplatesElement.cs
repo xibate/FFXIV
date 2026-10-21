@@ -89,52 +89,27 @@ public sealed unsafe class NameplatesElement : HudElement
     private const int MaxGamePlates = 50;
     private readonly Dictionary<nint, byte> plateSlots = new();
 
-    // Per unit: where our spot sits relative to the game's own plate node, averaged over time.
-    private readonly Dictionary<ulong, Vector2> gameOffsets = new();
-
     /// <summary>
-    /// The game moves its own plate node in step with the frame being drawn. Riding on that node (plus our spot's
-    /// slowly averaged offset from it) keeps the plate where we computed it but moving as smoothly as the game's.
+    /// Where the game draws its own nameplate for a unit, the way DelvUI reads it: the bottom centre of the plate's
+    /// root node. It moves in step with the frame, so plates stick to the character.
     /// </summary>
-    private Vector2 FollowGamePlate(AddonNamePlate* addon, nint address, ulong key, Vector2 viewportPos, Vector2 projected, float deltaTime)
+    private bool GamePlateAnchor(AddonNamePlate* addon, nint address, Vector2 viewportPos, out Vector2 anchor)
     {
-        if (gameOffsets.Count > 400)
-        {
-            gameOffsets.Clear();
-        }
-
+        anchor = default;
         if (addon == null || addon->NamePlateObjectArray == null || !plateSlots.TryGetValue(address, out var slot) || slot >= MaxGamePlates)
         {
-            gameOffsets.Remove(key);
-            return projected;
+            return false;
         }
 
         var node = addon->NamePlateObjectArray[slot].RootComponentNode;
         if (node == null)
         {
-            gameOffsets.Remove(key);
-            return projected;
+            return false;
         }
 
-        var nodePos = viewportPos + new Vector2(node->AtkResNode.X, node->AtkResNode.Y);
-        var offset = projected - nodePos;
-        if (!float.IsFinite(offset.X) || !float.IsFinite(offset.Y))
-        {
-            return projected;
-        }
-
-        // A big jump means the slot was reused for this unit just now: start over.
-        if (gameOffsets.TryGetValue(key, out var averaged) && Vector2.Distance(averaged, offset) < 80f)
-        {
-            averaged += (offset - averaged) * (1f - MathF.Exp(-Math.Max(0f, deltaTime) / 0.5f));
-        }
-        else
-        {
-            averaged = offset;
-        }
-
-        gameOffsets[key] = averaged;
-        return nodePos + averaged;
+        var res = &node->AtkResNode;
+        anchor = viewportPos + new Vector2(res->X + res->Width / 2f, res->Y + res->Height);
+        return float.IsFinite(anchor.X) && float.IsFinite(anchor.Y);
     }
 
     // Per unit: the whole-pixel spot the plate was last drawn at.
@@ -265,7 +240,8 @@ public sealed unsafe class NameplatesElement : HudElement
                 continue;
             }
 
-            var screen = Steady(key, FollowGamePlate(addon, obj.Address, key, viewportPos, projected, deltaTime));
+            // The game's own plate position when it has one (as DelvUI does); our projection otherwise.
+            var screen = Steady(key, GamePlateAnchor(addon, obj.Address, viewportPos, out var gameAnchor) ? gameAnchor : projected);
 
             plates.Add(new Plate { Object = obj, Screen = screen + new Vector2(0, s.YOffset), Distance = distance, Mode = mode, IsTarget = isTarget });
         }
