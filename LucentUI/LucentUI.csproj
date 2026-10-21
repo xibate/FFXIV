@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.19.0.0</Version>
+    <Version>0.20.0.0</Version>
     <!-- Manifest fields picked up by DalamudPackager -->
     <Author>xibate</Author>
     <Name>LucentUI</Name>
@@ -10,6 +10,7 @@
 Everything can be moved in Unlock Mode, styled from one place, and saved into profiles that switch automatically per job. EllesmereUI profiles from WoW can be imported.
 Inspired by EllesmereUI for World of Warcraft.</Description>
     <RepoUrl>https://github.com/xibate/FFXIV</RepoUrl>
+    <IconUrl>https://raw.githubusercontent.com/xibate/FFXIV/claude/quirky-volta-q8y8hy/LucentUI/images/icon.png</IconUrl>
     <Tags>UI;HUD;unitframes;party;castbar;jobgauge;nameplates</Tags>
   </PropertyGroup>
 
@@ -20,5 +21,7 @@ Inspired by EllesmereUI for World of Warcraft.</Description>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="Config\Presets\Lucent.lui" LogicalName="LucentUI.Presets.Lucent.lui" />
+    <!-- Plugin icon: Dalamud shows images/icon.png next to the plugin; the repository lists it by IconUrl. -->
+    <None Include="images\icon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
