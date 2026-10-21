@@ -171,17 +171,7 @@ public sealed class ProfileManager
 
         try
         {
-            var data = Convert.FromBase64String(text[ExportPrefix.Length..]);
-            using var input = new GZipStream(new MemoryStream(data), CompressionMode.Decompress);
-            using var reader = new StreamReader(input, Encoding.UTF8);
-            var profile = JsonConvert.DeserializeObject<Profile>(reader.ReadToEnd(), JsonSettings);
-            if (profile == null)
-            {
-                error = "The profile is empty.";
-                return false;
-            }
-
-            config.Profiles[name] = profile;
+            config.Profiles[name] = Decode(text);
             Plugin.MarkDirty();
             return true;
         }
@@ -219,6 +209,43 @@ public sealed class ProfileManager
         notes = result.Notes;
         Plugin.MarkDirty();
         return true;
+    }
+
+    /// <summary>Reads a LucentUI profile string (LUI1:...). Throws when it is damaged.</summary>
+    public static Profile Decode(string text)
+    {
+        text = text.Trim();
+        if (!text.StartsWith(ExportPrefix, StringComparison.Ordinal))
+        {
+            throw new FormatException("Not a LucentUI profile.");
+        }
+
+        var data = Convert.FromBase64String(text[ExportPrefix.Length..]);
+        using var input = new GZipStream(new MemoryStream(data), CompressionMode.Decompress);
+        using var reader = new StreamReader(input, Encoding.UTF8);
+        return JsonConvert.DeserializeObject<Profile>(reader.ReadToEnd(), JsonSettings) ?? throw new FormatException("The profile is empty.");
+    }
+
+    /// <summary>
+    /// Adds the built-in Lucent profile (scaled to the screen) under the first free name, optionally making it
+    /// the active one. Returns the name it was added under.
+    /// </summary>
+    public string AddLucent(float screenHeight, bool activate)
+    {
+        var name = Presets.LucentName;
+        for (var i = 2; config.Profiles.ContainsKey(name); i++)
+        {
+            name = $"{Presets.LucentName} {i}";
+        }
+
+        config.Profiles[name] = Presets.Lucent(screenHeight);
+        Plugin.MarkDirty();
+        if (activate)
+        {
+            SetActive(name);
+        }
+
+        return name;
     }
 
     public static Profile Clone(Profile profile)

@@ -34,6 +34,7 @@ public sealed class Plugin : IDalamudPlugin
 
         Config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Profiles = new ProfileManager(Config);
+        AddLucentOnce();
         Media = new MediaLibrary(System.IO.Path.Combine(pluginInterface.GetPluginConfigDirectory(), "Media"));
         Media.Rescan(Config.MediaFolders);
 
@@ -63,6 +64,36 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     internal static Configuration Config { get; private set; } = null!;
+
+    /// <summary>The game's screen height in pixels (0 when not known yet).</summary>
+    internal static unsafe float ScreenHeight
+    {
+        get
+        {
+            var device = FFXIVClientStructs.FFXIV.Client.Graphics.Kernel.Device.Instance();
+            return device != null ? device->Height : 0f;
+        }
+    }
+
+    /// <summary>Adds the built-in Lucent profile the first time this version runs; on a fresh install it is used.</summary>
+    private static void AddLucentOnce()
+    {
+        if (Config.LucentAdded)
+        {
+            return;
+        }
+
+        try
+        {
+            Profiles.AddLucent(ScreenHeight, activate: Config.FirstRun);
+            Config.LucentAdded = true;
+            SaveNow();
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Error(ex, "Could not add the Lucent profile");
+        }
+    }
 
     internal static ProfileManager Profiles { get; private set; } = null!;
 

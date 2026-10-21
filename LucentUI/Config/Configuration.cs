@@ -12,6 +12,9 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>Shows the welcome card in the options window until dismissed.</summary>
     public bool FirstRun = true;
 
+    /// <summary>Set once the built-in Lucent profile has been added, so deleting it is respected.</summary>
+    public bool LucentAdded = false;
+
     /// <summary>Show elements with sample data while the settings window is open.</summary>
     public bool PreviewWhileEditing = true;
 

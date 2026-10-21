@@ -1202,6 +1202,13 @@ public sealed partial class OptionsWindow : Window
             Report(profiles.Delete(profiles.CurrentName), "Profile deleted", "You cannot delete your last profile.");
         }
 
+        Ui.Card("Lucent Profile", "The built-in Lucent layout (EllesmereUI style), scaled to your screen. Its font and bar textures show when they are in your media folders (Style > Media); otherwise the game font and bar style are used.");
+        if (Ui.Button("Lucent", "Add the Lucent profile"))
+        {
+            var added = profiles.AddLucent(Plugin.ScreenHeight, activate: true);
+            Report(true, $"Added and switched to \"{added}\"", string.Empty);
+        }
+
         Ui.Card("Share", "Export copies the active profile to your clipboard as text. Import reads one from your clipboard.");
         if (Ui.Button("Export", "Copy to clipboard"))
         {
