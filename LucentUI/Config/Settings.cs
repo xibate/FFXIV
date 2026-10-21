@@ -182,6 +182,8 @@ public sealed class StyleSettings
     /// <summary>A bar texture from the media library by name; empty uses <see cref="BarStyle"/>.</summary>
     public string BarTexture = string.Empty;
 
+    public ShieldSettings Shields = new();
+
     /// <summary>Shape of every buff and debuff icon whose own shape is "Style Default".</summary>
     public IconShape IconShape = IconShape.Portrait;
     public int FontSize = 16;
@@ -307,6 +309,10 @@ public sealed class PartySettings
     public TextStyle CenterStyle = new();
     public HealthColorMode ColorMode = HealthColorMode.Inherit;
     public bool ShowShield = true;
+
+    /// <summary>Use <see cref="Shields"/> instead of the Style page's shield look.</summary>
+    public bool OwnShieldStyle = false;
+    public ShieldSettings Shields = new();
     public bool RangeFade = true;
     public bool HighlightTarget = true;
     public bool Interactive = true;
@@ -482,6 +488,55 @@ public enum GameNameplateMode
     HideAll,
 }
 
+/// <summary>Where a shield (absorb) is drawn on a health bar.</summary>
+public enum ShieldPlacement
+{
+    /// <summary>In the missing-health area, right after the health fill.</summary>
+    AfterHealth,
+
+    /// <summary>Over the health fill, ending at its edge (EllesmereUI's "Overlay").</summary>
+    Overlay,
+
+    /// <summary>From the bar's left edge.</summary>
+    FromLeft,
+
+    /// <summary>From the bar's right edge.</summary>
+    FromRight,
+}
+
+public enum ShieldLook
+{
+    Solid,
+    Striped,
+}
+
+/// <summary>What to do with shield that does not fit in the missing health (After Health only).</summary>
+public enum OvershieldMode
+{
+    /// <summary>A thin strip along the top of the bar.</summary>
+    Strip,
+
+    /// <summary>Over the health fill, growing from the bar's start.</summary>
+    FromStart,
+    Hidden,
+}
+
+/// <summary>How shields are drawn on every health bar.</summary>
+public sealed class ShieldSettings
+{
+    public ShieldPlacement Placement = ShieldPlacement.AfterHealth;
+    public ShieldLook Look = ShieldLook.Solid;
+    public float Opacity = 0.85f;
+    public OvershieldMode Overshield = OvershieldMode.Strip;
+
+    /// <summary>A bright line at the shield's leading edge.</summary>
+    public bool EdgeLine = false;
+
+    /// <summary>Only used by frames with their own shield style; off uses the Style page's shield colour.</summary>
+    public bool OwnColor = false;
+    public Vector4 Color = new(1f, 1f, 1f, 0.8f);
+}
+
 /// <summary>A point on a frame that status icons are lined up against.</summary>
 public enum IconAnchor
 {
@@ -635,6 +690,9 @@ public sealed class AllianceSettings
     public bool RangeFade = true;
     public bool Interactive = true;
     public bool ShowJobIcon = true;
+    public bool ShowShield = true;
+    public bool OwnShieldStyle = false;
+    public ShieldSettings Shields = new();
 
     /// <summary>Put each party's members in a row instead of a column.</summary>
     public bool HorizontalMembers = false;

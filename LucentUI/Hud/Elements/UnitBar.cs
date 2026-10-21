@@ -19,6 +19,9 @@ public struct UnitBarOptions
     public TextStyle? RightStyle;
     public HealthColorMode ColorMode;
     public bool ShowShield;
+
+    /// <summary>Overrides the Style page's shield look; null uses it.</summary>
+    public ShieldSettings? Shields;
     public bool Reverse;
     public bool Highlight;
     public bool Hovered;
@@ -120,7 +123,7 @@ public static class UnitBar
 
         if (o.ShowShield && unit.ShieldFraction > 0f && unit.HasHealth && !unit.IsDead)
         {
-            DrawShield(ctx, healthMin, healthMax, unit, o.Reverse);
+            DrawShield(ctx, o.Shields ?? s.Shields, healthMin, healthMax, unit, o.Reverse);
         }
 
         // Power
@@ -217,28 +220,102 @@ public static class UnitBar
         return (unitColor, null);
     }
 
-    private static void DrawShield(DrawContext ctx, Vector2 min, Vector2 max, in UnitData unit, bool reverse)
+    private static void DrawShield(DrawContext ctx, ShieldSettings settings, Vector2 min, Vector2 max, in UnitData unit, bool reverse)
     {
         var width = max.X - min.X;
         var hpWidth = MathF.Round(width * unit.HpFraction);
         var shieldWidth = MathF.Round(width * Math.Min(unit.ShieldFraction, 1f));
-        var color = ctx.Style.Shield;
-
-        // Shield sits in the missing-health area; anything that does not fit shows as a strip along the top.
-        var fits = Math.Min(shieldWidth, width - hpWidth);
-        var overflow = shieldWidth - fits;
-
-        if (fits > 0)
+        if (shieldWidth <= 0f)
         {
-            var start = reverse ? max.X - hpWidth - fits : min.X + hpWidth;
-            Gfx.Fill(ctx, new Vector2(start, min.Y), new Vector2(start + fits, max.Y), color, allowGradient: false);
+            return;
         }
 
-        if (overflow > 0)
+        // Work in "distance from the bar's start" (left, or right when reversed) and flip at the end.
+        float from, to;
+        var overflow = 0f;
+        switch (settings.Placement)
         {
-            var strip = Math.Max(2f, MathF.Round((max.Y - min.Y) * 0.2f));
-            var start = reverse ? max.X - overflow : min.X;
-            Gfx.Fill(ctx, new Vector2(start, min.Y), new Vector2(start + overflow, min.Y + strip), color, allowGradient: false);
+            case ShieldPlacement.Overlay:
+                from = Math.Max(0f, hpWidth - shieldWidth);
+                to = hpWidth;
+                break;
+            case ShieldPlacement.FromLeft:
+                (from, to) = reverse ? (width - shieldWidth, width) : (0f, shieldWidth);
+                break;
+            case ShieldPlacement.FromRight:
+                (from, to) = reverse ? (0f, shieldWidth) : (width - shieldWidth, width);
+                break;
+            default:
+                var fits = Math.Min(shieldWidth, width - hpWidth);
+                from = hpWidth;
+                to = hpWidth + fits;
+                overflow = shieldWidth - fits;
+                break;
+        }
+
+        Vector2 Span(float a, float b, float top, float bottom) => reverse
+            ? new Vector2(max.X - b, top)
+            : new Vector2(min.X + a, top);
+
+        if (to > from)
+        {
+            DrawShieldSegment(ctx, settings, Span(from, to, min.Y, max.Y), new Vector2(to - from, max.Y - min.Y), reverse ? -1 : 1, settings.Placement == ShieldPlacement.Overlay);
+        }
+
+        if (overflow > 0f)
+        {
+            switch (settings.Overshield)
+            {
+                case OvershieldMode.Strip:
+                {
+                    var strip = Math.Max(2f, MathF.Round((max.Y - min.Y) * 0.2f));
+                    DrawShieldSegment(ctx, settings, Span(0f, overflow, min.Y, min.Y + strip), new Vector2(overflow, strip), reverse ? -1 : 1, false);
+                    break;
+                }
+
+                case OvershieldMode.FromStart:
+                    DrawShieldSegment(ctx, settings, Span(0f, overflow, min.Y, max.Y), new Vector2(overflow, max.Y - min.Y), reverse ? -1 : 1, true);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>One shield rectangle: solid or striped, with an optional bright line at its leading edge.</summary>
+    private static void DrawShieldSegment(DrawContext ctx, ShieldSettings settings, Vector2 pos, Vector2 size, int direction, bool overHealth)
+    {
+        var dl = ctx.DrawList;
+        var min = Gfx.Floor(pos);
+        var max = min + Gfx.Floor(size);
+        if (max.X - min.X < 1f || max.Y - min.Y < 1f)
+        {
+            return;
+        }
+
+        var opacity = Math.Clamp(settings.Opacity, 0f, 1f);
+        var color = settings.OwnColor ? settings.Color : ctx.Style.Shield;
+        if (settings.Look == ShieldLook.Striped)
+        {
+            // A faint fill with bright diagonal stripes, like EllesmereUI's striped absorbs.
+            dl.AddRectFilled(min, max, ctx.Col(Colors.WithAlpha(color, color.W * opacity * (overHealth ? 0.25f : 0.35f))));
+            var stripe = ctx.Col(Colors.WithAlpha(color, color.W * opacity));
+            var height = max.Y - min.Y;
+            dl.PushClipRect(min, max, true);
+            for (var x = min.X - height; x < max.X; x += 6f)
+            {
+                dl.AddLine(new Vector2(x, max.Y), new Vector2(x + height, min.Y), stripe, 2f);
+            }
+
+            dl.PopClipRect();
+        }
+        else
+        {
+            dl.AddRectFilled(min, max, ctx.Col(Colors.WithAlpha(color, color.W * opacity * (overHealth ? 0.75f : 1f))));
+        }
+
+        if (settings.EdgeLine)
+        {
+            var x = direction > 0 ? max.X - 1f : min.X;
+            dl.AddRectFilled(new Vector2(x - 1f, min.Y), new Vector2(x + 1f, max.Y), ctx.Col(Colors.Lighten(color, 0.6f)));
         }
     }
 }

@@ -548,6 +548,15 @@ public static class EllesmereImport
                 var frameTexture = TextureName(Get(frame, "healthBarTexture"));
                 s.Texture = frameTexture.Equals(globalTexture, StringComparison.OrdinalIgnoreCase) ? string.Empty : frameTexture;
                 s.Enabled = Bool(Get(enabled, d.EuiKey)) ?? true;
+                if (Get(frame, "showPlayerAbsorb") is { } absorbStyle)
+                {
+                    s.ShowShield = ShieldStyle(absorbStyle) != null;
+                }
+
+                if (d.EuiKey == "player" && ImportShield(key => Get(frame, key), "showPlayerAbsorb", P.Style.Shields) is { } shieldColor)
+                {
+                    P.Style.Shield = shieldColor;
+                }
 
                 var captured = s;
                 Place(d.EuiKey, d.Element, s.Size,
@@ -559,6 +568,60 @@ public static class EllesmereImport
             UnitCastBars(uf, positions);
             Auras(Table(Get(uf, "playerAuraBars")));
             TargetAuras(Table(Get(uf, "target")));
+        }
+
+        /// <summary>EllesmereUI absorb style ("clean", "striped", "none", or an old true/false); null means no shields.</summary>
+        private static ShieldLook? ShieldStyle(object? value) => value switch
+        {
+            false => null,
+            string text when text.Equals("none", StringComparison.OrdinalIgnoreCase) => null,
+            string text when text.Contains("strip", StringComparison.OrdinalIgnoreCase) => ShieldLook.Striped,
+            _ => ShieldLook.Solid,
+        };
+
+        /// <summary>Copies EllesmereUI's absorb look into <paramref name="target"/> and returns its colour, if set.</summary>
+        private static Vector4? ImportShield(Func<string, object?> value, string styleKey, ShieldSettings target)
+        {
+            if (ShieldStyle(value(styleKey)) is { } look)
+            {
+                target.Look = look;
+            }
+
+            target.Placement = (Str(value("absorbEdgeMode")) ?? string.Empty).ToLowerInvariant() switch
+            {
+                var mode when mode.StartsWith("overlay", StringComparison.Ordinal) => ShieldPlacement.Overlay,
+                "left" or "fromleft" => ShieldPlacement.FromLeft,
+                "right" or "fromright" => ShieldPlacement.FromRight,
+                "" => target.Placement,
+                _ => ShieldPlacement.AfterHealth,
+            };
+
+            if (Num(value("absorbOpacity")) is { } opacity)
+            {
+                target.Opacity = Math.Clamp((float)opacity / 100f, 0f, 1f);
+            }
+
+            if (Bool(value("absorbGlowLine")) is { } line)
+            {
+                target.EdgeLine = line;
+            }
+
+            if (Bool(value("showOvershield")) is { } overshield)
+            {
+                target.Overshield = overshield ? OvershieldMode.Strip : OvershieldMode.Hidden;
+            }
+
+            // Opacity is its own setting, so the colour is kept fully opaque.
+            return Color(value("absorbColor")) is { } color ? color with { W = 1f } : null;
+        }
+
+        private static void OwnShieldColor(Vector4? color, ShieldSettings target)
+        {
+            if (color is { } c)
+            {
+                target.OwnColor = true;
+                target.Color = c;
+            }
         }
 
         /// <summary>Text size, offset and class-colour flag stored as prefixSize / prefixX / prefixY / prefixClassColor.</summary>
@@ -1191,6 +1254,12 @@ public static class EllesmereImport
             s.ShowWhenSolo = Bool(Get(raid, "partyShowWhenSolo")) ?? Bool(Get(raid, "showWhenSolo")) ?? false;
             s.IncludePlayer = !(Bool(Get(raid, "partyHideSelf")) ?? false);
             s.Texture = TextureName(PartyValue("healthBarTexture"));
+            if (PartyValue("absorbStyle") != null)
+            {
+                s.ShowShield = ShieldStyle(PartyValue("absorbStyle")) != null;
+                s.OwnShieldStyle = true;
+                OwnShieldColor(ImportShield(PartyValue, "absorbStyle", s.Shields), s.Shields);
+            }
 
             // Power bar: EllesmereUI shows it per role; LucentUI shows it for everyone or no one.
             var anyPower = new[] { "Healer", "Tank", "DPS" }.Any(role => Bool(PartyValue("powerShowFor" + role)) ?? role == "Healer");
@@ -1292,6 +1361,13 @@ public static class EllesmereImport
         {
             var s = P.Alliance;
             object? RaidValue(string key) => Get(raid, key);
+
+            if (RaidValue("absorbStyle") != null)
+            {
+                s.ShowShield = ShieldStyle(RaidValue("absorbStyle")) != null;
+                s.OwnShieldStyle = true;
+                OwnShieldColor(ImportShield(RaidValue, "absorbStyle", s.Shields), s.Shields);
+            }
 
             var sizes = Table(Get(raid, "raidSizeOverrides"));
             var override25 = sizes != null && sizes.TryGetValue(25d, out var bySize) ? Table(bySize) : Table(Get(sizes, "25"));

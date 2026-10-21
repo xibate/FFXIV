@@ -96,6 +96,7 @@ public sealed class PartyFramesElement : HudElement
                 RightStyle = s.RightStyle,
                 ColorMode = s.ColorMode,
                 ShowShield = s.ShowShield,
+                Shields = s.OwnShieldStyle ? s.Shields : null,
                 Highlight = isTarget,
                 Hovered = hovered,
                 FadeOutOfRange = s.RangeFade,

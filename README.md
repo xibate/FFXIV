@@ -7,7 +7,7 @@ Inspired by [EllesmereUI](https://github.com/EllesmereGaming/EllesmereUI) for Wo
 
 | Module | Contents |
 | --- | --- |
-| **Unit Frames** | Player, Target, Target of Target and Focus. Health, shields, mana/GP/CP, job/role/gradient/dark colour modes, text templates, smooth health animation. Click to target, right-click menu, `<mo>` mouseover and **mouseover casting** (actions go to the frame under the mouse). Every text has its own content, size, offset and colour; power bar above or below; own background; optional job icon portrait. |
+| **Unit Frames** | Player, Target, Target of Target and Focus. Health, shields (after health, overlaid on the health bar or from either side; solid or striped; opacity, overshield and edge line, like EllesmereUI), mana/GP/CP, job/role/gradient/dark colour modes, text templates, smooth health animation. Click to target, right-click menu, `<mo>` mouseover and **mouseover casting** (actions go to the frame under the mouse). Every text has its own content, size, offset and colour; power bar above or below; own background; optional job icon portrait. |
 | **Party Frames** | Same order as the game's party list (or by role), cross-world and trust parties, job icons, range fading, target highlight. Trackers for raises, invulnerabilities, cleansable debuffs and ready checks, plus buff and debuff icons per member (your HoTs and shields, or a list you choose) with the same settings for both: position, inside or outside the frame, growth, offset, size, shape (portrait, square or round), border and timers. |
 | **Alliance Frames** | The two other parties in 24-player alliance raids as compact bars (in columns or rows, wrapping after as many members per row as you like), with health even when they are far away, range fading, click to target, and buff/debuff icons. |
 | **Job Gauges** | Every combat job (21 jobs): resources (Beast Gauge, Kenki, Soul Voice...), stacks (cartridges, lilies, feathers...), coloured pips (Sen, Beast Chakra, dance steps, cards...), and timers for key buffs, procs and DoTs. Each bar can be turned off, recoloured, or detached to move and size it on its own. |
@@ -40,12 +40,12 @@ Core systems, following EllesmereUI's ideas:
 In WoW, export your profile from EllesmereUI (a normal profile export or a full-account export both work) and copy the string; it starts with `!EUI_`. In game, open `/lucent` → **Profiles** and press **Import EllesmereUI profile from clipboard**. The new profile is selected straight away.
 
 Converted:
-- **Unit frames**: player, target, target of target and focus sizes, positions, power bars (above/below), text content, text size, offset and class colour, backgrounds, class colours, dark theme, reversed fill.
+- **Unit frames**: player, target, target of target and focus sizes, positions, power bars (above/below), text content, text size, offset and class colour, backgrounds, class colours, dark theme, reversed fill, shields (style, placement, opacity, colour, edge line, overshield, and which frames show them).
 - **Cast bars**: the Resource Bars cast bar (or the unit frame one if you use that), target and focus cast bars, with sizes, positions, colours, background, icon side and text sizes.
 - **Resource Bars**: the power bar becomes each job's main resource bar (mana for healers and casters) and the class resource bar each job's stacks, as detached job gauge bars with EllesmereUI's size and position; the GCD bar too.
 - **Cooldown Manager**: the Cooldowns, Utility and Buffs bars' icon size, rows, spacing, position and alignment, including bars attached to the player frame or a resource bar. Your own custom bars become LucentUI custom bars with the same name, size and position (add FFXIV actions or potions to them). WoW spells cannot carry over, so the bars fill with your FFXIV job's own cooldowns.
-- **Party frames**: size, spacing, sorting and role order, direction, position, show when solo, hide yourself, name and health text, power bar, debuff icons (size, position, growth, offset, timers).
-- **Raid frames → alliance frames**: cell size (the 25-player size if set), spacing, member and group growth, name and health text, texture, colours, debuff icons and position.
+- **Party frames**: size, spacing, sorting and role order, direction, position, show when solo, hide yourself, name and health text, power bar, debuff icons (size, position, growth, offset, timers), shield style.
+- **Raid frames → alliance frames**: cell size (the 25-player size if set), spacing, member and group growth, name and health text, texture, colours, debuff icons and position, shield style.
 - **Links**: elements anchored to other elements and matched widths in EllesmereUI's Unlock Mode.
 - **Nameplates**: bar size, text, cast bar, friendly name-only plates and target scale.
 - **Fonts and textures**: the global font and each frame's bar texture, by name. They show once the media is in one of your media folders (Style > Media).

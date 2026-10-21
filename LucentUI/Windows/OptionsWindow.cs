@@ -588,8 +588,11 @@ public sealed partial class OptionsWindow : Window
             Ui.Color("Neutral", ref s.Neutral);
             Ui.Color("Friendly NPC", ref s.Friendly);
             Ui.Color("Dead", ref s.Dead);
-            Ui.Color("Shield", ref s.Shield);
             Ui.Percent("Out of range opacity", ref s.OutOfRangeAlpha);
+
+            Ui.Card("Shields", "How barrier/shield amounts show on health bars. Party and alliance frames can use their own look.");
+            Ui.Color("Shield colour", ref s.Shield);
+            DrawShieldLook(s.Shields, false);
 
             Ui.Card("Resource Colours");
             Ui.Color("Mana", ref s.Mana);
@@ -931,11 +934,12 @@ public sealed partial class OptionsWindow : Window
             Ui.Card("Party Health");
             Ui.MediaPicker("Bar texture", ref s.Texture, false, "Profile texture", "Empty uses the texture from the Style page.");
             Ui.Enum("Health colour", ref s.ColorMode);
-            Ui.Toggle("Show shield", ref s.ShowShield);
             Ui.Toggle("Fade out of range", ref s.RangeFade, "Members further than 30 yalms fade out.");
             Ui.Toggle("Highlight target", ref s.HighlightTarget);
             Ui.Toggle("Show power bar", ref s.ShowPower);
             Ui.Slider("Power bar height", ref s.PowerHeight, 1, 20);
+
+            DrawFrameShields("Party Shields", ref s.ShowShield, ref s.OwnShieldStyle, s.Shields);
         }
 
         if (Ui.Tab(tab, 2))
@@ -995,6 +999,44 @@ public sealed partial class OptionsWindow : Window
         }
     }
 
+    /// <summary>Placement, look, opacity, overshield and edge line for shields on health bars.</summary>
+    private static void DrawShieldLook(ShieldSettings sh, bool ownColor)
+    {
+        Ui.Enum("Placement", ref sh.Placement, "After health: fills the missing health, like the game. Overlay: covers the end of the health bar. From left/right: grows from that side of the bar.");
+        Ui.Enum("Look", ref sh.Look, "Solid fill or EllesmereUI-style stripes.");
+        Ui.Percent("Opacity", ref sh.Opacity);
+        if (sh.Placement == ShieldPlacement.AfterHealth)
+        {
+            Ui.Enum("Overshield", ref sh.Overshield, "What to show when the shield is bigger than the missing health.");
+        }
+
+        Ui.Toggle("Edge line", ref sh.EdgeLine, "A bright line at the shield's edge.");
+        if (ownColor)
+        {
+            Ui.Toggle("Own colour", ref sh.OwnColor, "Off uses the shield colour from the Style page.");
+            if (sh.OwnColor)
+            {
+                Ui.Color("Shield colour", ref sh.Color);
+            }
+        }
+    }
+
+    private static void DrawFrameShields(string title, ref bool show, ref bool own, ShieldSettings sh)
+    {
+        Ui.Card(title);
+        Ui.Toggle("Show shield", ref show);
+        if (!show)
+        {
+            return;
+        }
+
+        Ui.Toggle("Own shield style", ref own, "Off uses the shield look from Style > Colours.");
+        if (own)
+        {
+            DrawShieldLook(sh, true);
+        }
+    }
+
     private static void DrawAlliance(AllianceSettings s)
     {
         Ui.PageHeader("Alliance", "The two other parties in 24-player alliance raids. Shows only in an alliance.");
@@ -1018,6 +1060,8 @@ public sealed partial class OptionsWindow : Window
             Ui.Toggle("Job icon", ref s.ShowJobIcon);
             Ui.Toggle("Fade out of range", ref s.RangeFade, "Members further than 40 yalms fade out.");
             Ui.Toggle("Clickable", ref s.Interactive, "Click to target (when they are near), mouseover and mouseover casting.");
+
+            DrawFrameShields("Alliance Shields", ref s.ShowShield, ref s.OwnShieldStyle, s.Shields);
         }
 
         if (Ui.Tab(tab, 1))
