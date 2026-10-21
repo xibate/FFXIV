@@ -80,6 +80,66 @@ public sealed class HudRenderer : IDisposable
 
     public UnlockMode Unlock { get; }
 
+    private readonly DrawContext previewCtx = new();
+    private readonly ClipRects noClips = new();
+
+    /// <summary>
+    /// Draws one element with sample data into the current ImGui window (the settings page preview).
+    /// Returns the element's size, or zero when there is no such element.
+    /// </summary>
+    public Vector2 DrawPreview(string elementId, Vector2 pos)
+    {
+        HudElement? element = null;
+        foreach (var e in Elements)
+        {
+            if (e.Id == elementId)
+            {
+                element = e;
+                break;
+            }
+        }
+
+        if (element == null)
+        {
+            return Vector2.Zero;
+        }
+
+        var profile = Plugin.Profiles.Current;
+        fonts.Ensure(profile.Style);
+        var c = previewCtx;
+        c.DrawList = ImGui.GetWindowDrawList();
+        c.Profile = profile;
+        c.General = Plugin.Config.General;
+        c.Fonts = fonts;
+        c.Input = input;
+        c.Smoother = smoother;
+        c.Clips = noClips;
+        c.DeltaTime = ImGui.GetIO().DeltaTime;
+        c.Preview = true;
+        c.Alpha = 1f;
+
+        var suppressed = input.Suppressed;
+        input.Suppressed = true;
+        try
+        {
+            using var font = fonts.PushMain();
+            element.Draw(c, pos);
+        }
+        catch (Exception ex)
+        {
+            if (failedElements.Add("preview:" + element.Id))
+            {
+                Svc.Log.Error(ex, $"Failed to preview {element.Id}");
+            }
+        }
+        finally
+        {
+            input.Suppressed = suppressed;
+        }
+
+        return element.GetSize(profile);
+    }
+
     /// <summary>Set while the settings window is open with previews on: elements show sample data.</summary>
     public bool SettingsPreview { get; set; }
 

@@ -54,11 +54,31 @@ public sealed partial class OptionsWindow
         }
     }
 
-    /// <summary>The module's master switch, shown at the top of its page.</summary>
+    /// <summary>The module's master switch, in the toolbar under the page title (a row while searching).</summary>
     private static void ModuleSwitch(string name, ref bool enabled, string? note = null)
     {
-        Ui.Card("Module", note);
-        Ui.Toggle($"{name} on", ref enabled, enabled ? null : "This module is off, so nothing on this page shows in game.");
+        if (Ui.Searching)
+        {
+            Ui.Card("Module", note);
+            Ui.Toggle($"{name} on", ref enabled, enabled ? null : "This module is off, so nothing on this page shows in game.");
+            return;
+        }
+
+        Ui.EndCard();
+        if (Ui.Switch("##module_" + name, ref enabled))
+        {
+            Plugin.MarkDirty();
+        }
+
+        ImGui.SameLine();
+        ImGui.AlignTextToFramePadding();
+        ImGui.TextColored(enabled ? new System.Numerics.Vector4(1, 1, 1, 0.9f) : new System.Numerics.Vector4(1, 0.55f, 0.5f, 1f), enabled ? $"{name} on" : $"{name} off: nothing on this page shows in game");
+        if (note != null && ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip(note);
+        }
+
+        Ui.ToolbarOpen = true;
     }
 
     private static void DrawJobGauge(JobGaugeSettings s)
@@ -66,6 +86,7 @@ public sealed partial class OptionsWindow
         Ui.PageHeader("Job Gauge", "Your job's resources, procs and DoTs as bars. Every job has its own set.");
         ModuleSwitch("Job gauge", ref Plugin.Profiles.Current.Modules.JobGauges);
         CopyAndReset("jobgauge", s, () => new Profile().JobGauge);
+        ElementPreview("jobgauge");
         var tab = Ui.Tabs("jobgauge", "Layout", "Current Job", "All Jobs");
 
         if (Ui.Tab(tab, 0))
@@ -150,6 +171,11 @@ public sealed partial class OptionsWindow
             if (Ui.Tab(tab, i))
             {
                 var (title, bar, fallback, description) = bars[i];
+                if (tab >= 0)
+                {
+                    ElementPreview(i == 0 ? "cdm.cooldowns" : i == 1 ? "cdm.utility" : "cdm.buffs");
+                }
+
                 CopyAndReset("cdm" + i, bar, () => fallback, ("Cooldowns bar", s.Cooldowns), ("Utility bar", s.Utility), ("Buffs bar", s.Buffs));
                 DrawCooldownBar(title, bar, description);
             }
@@ -212,6 +238,11 @@ public sealed partial class OptionsWindow
                 DeleteCustomBar(s, i);
                 ImGui.PopID();
                 return;
+            }
+
+            if (tab >= 0)
+            {
+                ElementPreview(CooldownBarElement.CustomId(i));
             }
 
             DrawCooldownBar("Bar Layout", bar.Bar, "Size, rows and look of this bar.");
@@ -406,6 +437,7 @@ public sealed partial class OptionsWindow
     {
         Ui.PageHeader("Party Cooldowns", "Raid buffs and mitigation from everyone in your party: active, on cooldown or ready.");
         ModuleSwitch("Party cooldowns", ref Plugin.Profiles.Current.Modules.PartyCooldowns);
+        ElementPreview("partycooldowns");
 
         Ui.Card("Party Cooldowns");
         Ui.Toggle("Enabled", ref s.Enabled);
@@ -490,6 +522,7 @@ public sealed partial class OptionsWindow
     {
         Ui.PageHeader("Enemy List", "The enemies you are fighting, with casts and who they are attacking.");
         ModuleSwitch("Enemy list", ref Plugin.Profiles.Current.Modules.EnemyList);
+        ElementPreview("enemylist");
 
         Ui.Card("Enemy List");
         Ui.Toggle("Enabled", ref s.Enabled);

@@ -21,6 +21,11 @@ internal static partial class Ui
     private static string? pendingDescription;
     private static bool titleMatches;
     private static bool cardOpen;
+
+    // Two settings per row (EllesmereUI's "dual rows") when the content area is wide enough.
+    private static bool dualColumns;
+    private static int rowSlot;
+    private const float DualColumnWidth = 680f;
     private static Vector2 cardStart;
     private static uint cardId;
 
@@ -28,6 +33,9 @@ internal static partial class Ui
     private static readonly Dictionary<uint, float> CardHeights = new();
 
     public static string Filter = string.Empty;
+
+    /// <summary>Set after a toolbar item (the module switch) so the next one joins its line.</summary>
+    public static bool ToolbarOpen;
     public static Vector4 Accent = Colors.Rgb(0x3FD0C9);
 
     /// <summary>Set when any row in the current search produced output.</summary>
@@ -80,7 +88,12 @@ internal static partial class Ui
         }
 
         AnyVisible = true;
-        ImGui.TableNextRow();
+        if (!dualColumns || rowSlot == 0)
+        {
+            ImGui.TableNextRow();
+        }
+
+        rowSlot = dualColumns ? 1 - rowSlot : 0;
         ImGui.TableNextColumn();
         ImGui.AlignTextToFramePadding();
         ImGui.TextUnformatted(label);
@@ -101,6 +114,7 @@ internal static partial class Ui
 
     private static void OpenCard()
     {
+        ToolbarOpen = false;
         cardOpen = true;
         ImGui.PushID(pendingTitle ?? "card");
         cardId = ImGui.GetID("##card");
@@ -126,9 +140,22 @@ internal static partial class Ui
 
         ImGui.Spacing();
         var width = ImGui.GetContentRegionAvail().X - CardPadding;
-        ImGui.BeginTable("##rows", 2, ImGuiTableFlags.SizingStretchProp, new Vector2(width, 0));
-        ImGui.TableSetupColumn("label", ImGuiTableColumnFlags.WidthStretch, 0.42f);
-        ImGui.TableSetupColumn("control", ImGuiTableColumnFlags.WidthStretch, 0.58f);
+        dualColumns = width >= DualColumnWidth;
+        rowSlot = 0;
+        if (dualColumns)
+        {
+            ImGui.BeginTable("##rows", 4, ImGuiTableFlags.SizingStretchProp, new Vector2(width, 0));
+            ImGui.TableSetupColumn("label1", ImGuiTableColumnFlags.WidthStretch, 0.22f);
+            ImGui.TableSetupColumn("control1", ImGuiTableColumnFlags.WidthStretch, 0.28f);
+            ImGui.TableSetupColumn("label2", ImGuiTableColumnFlags.WidthStretch, 0.22f);
+            ImGui.TableSetupColumn("control2", ImGuiTableColumnFlags.WidthStretch, 0.28f);
+        }
+        else
+        {
+            ImGui.BeginTable("##rows", 2, ImGuiTableFlags.SizingStretchProp, new Vector2(width, 0));
+            ImGui.TableSetupColumn("label", ImGuiTableColumnFlags.WidthStretch, 0.42f);
+            ImGui.TableSetupColumn("control", ImGuiTableColumnFlags.WidthStretch, 0.58f);
+        }
     }
 
     private static bool Matches(string text) =>
@@ -147,7 +174,30 @@ internal static partial class Ui
     // ── Widgets ──────────────────────────────────────────────────────────────
 
     public static bool Toggle(string label, ref bool value, string? help = null) =>
-        Row(label, help) && Changed(ImGui.Checkbox("##" + label, ref value));
+        Row(label, help) && Changed(Switch("##" + label, ref value));
+
+    /// <summary>An on/off switch (a sliding pill) instead of a checkbox.</summary>
+    public static bool Switch(string id, ref bool value)
+    {
+        var height = ImGui.GetFrameHeight() * 0.8f;
+        var width = height * 1.9f;
+        var pos = ImGui.GetCursorScreenPos() + new Vector2(0, (ImGui.GetFrameHeight() - height) / 2f);
+        ImGui.InvisibleButton(id, new Vector2(width, ImGui.GetFrameHeight()));
+        var clicked = ImGui.IsItemClicked();
+        if (clicked)
+        {
+            value = !value;
+        }
+
+        var hovered = ImGui.IsItemHovered();
+        var dl = ImGui.GetWindowDrawList();
+        var track = value ? Colors.WithAlpha(Accent, hovered ? 0.95f : 0.8f) : new Vector4(1, 1, 1, hovered ? 0.18f : 0.12f);
+        dl.AddRectFilled(pos, pos + new Vector2(width, height), Colors.ToU32(track), height / 2f);
+        var radius = height / 2f - 2f;
+        var knobX = value ? pos.X + width - height / 2f : pos.X + height / 2f;
+        dl.AddCircleFilled(new Vector2(knobX, pos.Y + height / 2f), radius, Colors.ToU32(value ? Vector4.One : new Vector4(0.75f, 0.75f, 0.78f, 1f)));
+        return clicked;
+    }
 
     public static bool Slider(string label, ref int value, int min, int max, string? help = null) =>
         Row(label, help) && Changed(ImGui.SliderInt("##" + label, ref value, min, max));
@@ -414,28 +464,43 @@ internal static partial class Ui
         }
 
         EndCard();
+        ToolbarOpen = false;
         TabState.TryGetValue(id, out var selected);
         selected = Math.Clamp(selected, 0, names.Length - 1);
 
         ImGui.PushID("tabs_" + id);
+        var dl = ImGui.GetWindowDrawList();
+        var start = ImGui.GetCursorScreenPos();
+        var lineY = start.Y + ImGui.GetTextLineHeight() + 10f;
         for (var i = 0; i < names.Length; i++)
         {
             if (i > 0)
             {
-                ImGui.SameLine(0, 4);
+                ImGui.SameLine(0, 18);
             }
 
+            // Text tabs with an accent underline on the open one (EllesmereUI style).
             var active = i == selected;
-            ImGui.PushStyleColor(ImGuiCol.Button, active ? Colors.WithAlpha(Accent, 0.55f) : new Vector4(1, 1, 1, 0.05f));
-            ImGui.PushStyleColor(ImGuiCol.Text, active ? Vector4.One : new Vector4(1, 1, 1, 0.75f));
-            if (ImGui.Button(names[i]))
+            var pos = ImGui.GetCursorScreenPos();
+            var size = ImGui.CalcTextSize(names[i]);
+            if (ImGui.InvisibleButton(names[i], new Vector2(size.X, size.Y + 10f)))
             {
                 selected = i;
+                active = true;
             }
 
-            ImGui.PopStyleColor(2);
+            var hovered = ImGui.IsItemHovered();
+            var color = active ? Vector4.One : new Vector4(1, 1, 1, hovered ? 0.85f : 0.55f);
+            dl.AddText(pos + new Vector2(0, 3f), Colors.ToU32(color), names[i]);
+            if (active)
+            {
+                dl.AddRectFilled(new Vector2(pos.X - 2f, lineY - 2f), new Vector2(pos.X + size.X + 2f, lineY), Colors.ToU32(Accent));
+            }
         }
 
+        var right = start.X + ImGui.GetContentRegionAvail().X;
+        dl.AddLine(new Vector2(start.X, lineY), new Vector2(right, lineY), Colors.ToU32(new Vector4(1, 1, 1, 0.08f)));
+        ImGui.Dummy(new Vector2(0, 4));
         ImGui.PopID();
         TabState[id] = selected;
         ImGui.Dummy(new Vector2(0, 4));
@@ -457,11 +522,14 @@ internal static partial class Ui
             return;
         }
 
-        ImGui.SetWindowFontScale(1.35f);
+        ToolbarOpen = false;
+        ImGui.SetWindowFontScale(1.45f);
         ImGui.TextUnformatted(title);
         ImGui.SetWindowFontScale(1f);
         ImGui.TextDisabled(subtitle);
-        ImGui.Dummy(new Vector2(0, 6));
+        var start = ImGui.GetCursorScreenPos() + new Vector2(0, 4);
+        ImGui.GetWindowDrawList().AddLine(start, start + new Vector2(ImGui.GetContentRegionAvail().X, 0), Colors.ToU32(new Vector4(1, 1, 1, 0.08f)));
+        ImGui.Dummy(new Vector2(0, 10));
     }
 
     public static string PrettyName<T>(T value)

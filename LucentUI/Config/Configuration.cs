@@ -15,6 +15,9 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>Show elements with sample data while the settings window is open.</summary>
     public bool PreviewWhileEditing = true;
 
+    /// <summary>Show a live preview of the element at the top of its settings page.</summary>
+    public bool ShowPagePreview = true;
+
     public GeneralSettings General = new();
 
     public string ActiveProfile = ProfileManager.DefaultName;

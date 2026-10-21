@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using LucentUI.Config;
@@ -63,11 +65,14 @@ public sealed partial class OptionsWindow : Window
     private int pushedColors;
     private int pushedVars;
 
+    private static HudRenderer? previewHud;
+
     public OptionsWindow(HudRenderer hud)
         : base("LucentUI##LucentUI_Options", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         this.hud = hud;
-        Size = new Vector2(860, 620);
+        previewHud = hud;
+        Size = new Vector2(1020, 700);
         SizeCondition = ImGuiCond.FirstUseEver;
         SizeConstraints = new WindowSizeConstraints
         {
@@ -178,7 +183,7 @@ public sealed partial class OptionsWindow : Window
     public override void Draw()
     {
         hud.SettingsPreview = Plugin.Config.PreviewWhileEditing;
-        var sidebarWidth = 190f;
+        var sidebarWidth = 215f;
 
         using (var sidebar = ImRaii.Child("##sidebar", new Vector2(sidebarWidth, 0), false))
         {
@@ -212,17 +217,81 @@ public sealed partial class OptionsWindow : Window
 
     // ── Sidebar ──────────────────────────────────────────────────────────────
 
+    // Sidebar icon per page.
+    private static readonly Dictionary<Page, FontAwesomeIcon> PageIcons = new()
+    {
+        [Page.General] = FontAwesomeIcon.Cog,
+        [Page.Style] = FontAwesomeIcon.PaintBrush,
+        [Page.Player] = FontAwesomeIcon.User,
+        [Page.Target] = FontAwesomeIcon.Crosshairs,
+        [Page.TargetOfTarget] = FontAwesomeIcon.ArrowRight,
+        [Page.Focus] = FontAwesomeIcon.Eye,
+        [Page.Party] = FontAwesomeIcon.Users,
+        [Page.Alliance] = FontAwesomeIcon.LayerGroup,
+        [Page.EnemyList] = FontAwesomeIcon.ListUl,
+        [Page.Nameplates] = FontAwesomeIcon.Tag,
+        [Page.JobGauge] = FontAwesomeIcon.ChartBar,
+        [Page.CooldownManager] = FontAwesomeIcon.Stopwatch,
+        [Page.CastBars] = FontAwesomeIcon.Magic,
+        [Page.Auras] = FontAwesomeIcon.Star,
+        [Page.PartyCooldowns] = FontAwesomeIcon.History,
+        [Page.Extras] = FontAwesomeIcon.PuzzlePiece,
+        [Page.Hotbars] = FontAwesomeIcon.Th,
+        [Page.DefaultHud] = FontAwesomeIcon.EyeSlash,
+        [Page.Profiles] = FontAwesomeIcon.Copy,
+        [Page.About] = FontAwesomeIcon.InfoCircle,
+    };
+
+    /// <summary>Whether the module behind a page is on (null for pages without a module).</summary>
+    private static bool? ModuleOn(Page p, Profile profile) => p switch
+    {
+        Page.Player or Page.Target or Page.TargetOfTarget or Page.Focus => profile.Modules.UnitFrames,
+        Page.Party => profile.Modules.PartyFrames,
+        Page.Alliance => profile.Modules.Alliance,
+        Page.EnemyList => profile.Modules.EnemyList,
+        Page.Nameplates => profile.Modules.Nameplates,
+        Page.JobGauge => profile.Modules.JobGauges,
+        Page.CooldownManager => profile.Modules.CooldownManager,
+        Page.CastBars => profile.Modules.CastBars,
+        Page.Auras => profile.Modules.Auras,
+        Page.PartyCooldowns => profile.Modules.PartyCooldowns,
+        Page.Extras => profile.Modules.Extras,
+        Page.Hotbars => profile.Modules.Hotbars,
+        _ => null,
+    };
+
+    private readonly HashSet<string> collapsedGroups = new();
+
     private void DrawSidebar()
     {
-        var accent = Plugin.Profiles.Current.Style.Accent;
+        var profile = Plugin.Profiles.Current;
+        var accent = profile.Style.Accent;
 
         ImGui.SetWindowFontScale(1.5f);
         ImGui.TextColored(accent, "LUCENT");
         ImGui.SameLine(0, 4);
         ImGui.TextUnformatted("UI");
         ImGui.SetWindowFontScale(1f);
-        ImGui.TextDisabled($"Profile: {Plugin.Profiles.CurrentName}");
-        ImGui.Spacing();
+
+        // Profile switcher, like DelvUI's.
+        ImGui.SetNextItemWidth(-1);
+        if (ImGui.BeginCombo("##profile", Plugin.Profiles.CurrentName))
+        {
+            foreach (var name in Plugin.Config.Profiles.Keys.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+            {
+                if (ImGui.Selectable(name, name == Plugin.Profiles.CurrentName))
+                {
+                    Plugin.Profiles.SetActive(name);
+                }
+            }
+
+            ImGui.EndCombo();
+        }
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("Active profile. Manage profiles on the Profiles page.");
+        }
 
         ImGui.SetNextItemWidth(-1);
         ImGui.InputTextWithHint("##search", "Search settings...", ref search, 64);
@@ -236,28 +305,74 @@ public sealed partial class OptionsWindow : Window
         }
 
         ImGui.PopStyleColor();
-        if (ImGui.Checkbox("Preview frames", ref Plugin.Config.PreviewWhileEditing))
+        if (Ui.Switch("##previewframes", ref Plugin.Config.PreviewWhileEditing))
         {
             Plugin.MarkDirty();
         }
 
+        ImGui.SameLine();
+        ImGui.AlignTextToFramePadding();
+        ImGui.TextUnformatted("Preview frames");
         if (ImGui.IsItemHovered())
         {
             ImGui.SetTooltip("While this window is open, show every element with sample data (a target, casts, a party) so you can see your changes.");
         }
 
         ImGui.Spacing();
-
+        var dl = ImGui.GetWindowDrawList();
         foreach (var (group, items) in Navigation)
         {
+            // Group header: click to fold it away.
             ImGui.Spacing();
-            ImGui.TextDisabled(group);
+            var folded = collapsedGroups.Contains(group);
+            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, 1, 1, 0.45f));
+            if (ImGui.Selectable($"{(folded ? "+" : "-")}  {group}##group", false, ImGuiSelectableFlags.None, new Vector2(0, 18)))
+            {
+                if (!collapsedGroups.Add(group))
+                {
+                    collapsedGroups.Remove(group);
+                }
+            }
+
+            ImGui.PopStyleColor();
+            if (folded)
+            {
+                continue;
+            }
+
             foreach (var (target, label) in items)
             {
-                if (ImGui.Selectable($"  {label}##nav", page == target && search.Length == 0, ImGuiSelectableFlags.None, new Vector2(0, 22)))
+                var selected = page == target && search.Length == 0;
+                var rowStart = ImGui.GetCursorScreenPos();
+                var rowWidth = ImGui.GetContentRegionAvail().X;
+                if (ImGui.Selectable($"##nav{target}", selected, ImGuiSelectableFlags.None, new Vector2(0, 26)))
                 {
                     page = target;
                     search = string.Empty;
+                }
+
+                // Accent bar on the open page, an icon, the name and the module's on/off dot.
+                if (selected)
+                {
+                    dl.AddRectFilled(rowStart, rowStart + new Vector2(3, 26), Colors.ToU32(accent));
+                }
+
+                var textY = rowStart.Y + (26 - ImGui.GetTextLineHeight()) / 2f;
+                if (PageIcons.TryGetValue(target, out var icon))
+                {
+                    using (Svc.PluginInterface.UiBuilder.IconFontHandle.Push())
+                    {
+                        var iconText = icon.ToIconString();
+                        var iconSize = ImGui.CalcTextSize(iconText);
+                        dl.AddText(new Vector2(rowStart.X + 10 + (16 - iconSize.X) / 2f, rowStart.Y + (26 - iconSize.Y) / 2f), Colors.ToU32(selected ? accent : new Vector4(1, 1, 1, 0.6f)), iconText);
+                    }
+                }
+
+                dl.AddText(new Vector2(rowStart.X + 34, textY), Colors.ToU32(selected ? Vector4.One : new Vector4(1, 1, 1, 0.85f)), label);
+                if (ModuleOn(target, profile) is { } on)
+                {
+                    var dot = new Vector2(rowStart.X + rowWidth - 10, rowStart.Y + 13);
+                    dl.AddCircleFilled(dot, 3.5f, Colors.ToU32(on ? Colors.Rgb(0x58D27A) : new Vector4(1, 1, 1, 0.18f)));
                 }
             }
         }
@@ -530,6 +645,80 @@ public sealed partial class OptionsWindow : Window
         }
     }
 
+    /// <summary>A live preview of elements (with sample data) at the top of their settings page, like EllesmereUI's.</summary>
+    private static void ElementPreview(params string[] ids)
+    {
+        if (Ui.Searching || previewHud == null)
+        {
+            return;
+        }
+
+        Ui.EndCard();
+        Ui.ToolbarOpen = false;
+        var config = Plugin.Config;
+        var profile = Plugin.Profiles.Current;
+        var dl = ImGui.GetWindowDrawList();
+        var width = ImGui.GetContentRegionAvail().X;
+
+        if (!config.ShowPagePreview)
+        {
+            if (ImGui.SmallButton("Show preview"))
+            {
+                config.ShowPagePreview = true;
+                Plugin.MarkDirty();
+            }
+
+            ImGui.Dummy(new Vector2(0, 2));
+            return;
+        }
+
+        // Room around the elements for text above them and icons beside them.
+        const float padX = 48f;
+        const float padTop = 34f;
+        const float padBottom = 22f;
+        const float gap = 40f;
+        var sizes = new Vector2[ids.Length];
+        var total = 0f;
+        var tallest = 0f;
+        for (var i = 0; i < ids.Length; i++)
+        {
+            var element = previewHud.Elements.FirstOrDefault(e => e.Id == ids[i]);
+            sizes[i] = element?.GetSize(profile) ?? Vector2.Zero;
+            total += sizes[i].X + (i > 0 ? gap : 0);
+            tallest = Math.Max(tallest, sizes[i].Y);
+        }
+
+        var height = Math.Clamp(tallest + padTop + padBottom, 70f, 340f);
+        var start = ImGui.GetCursorScreenPos();
+        var end = start + new Vector2(width, height);
+        dl.AddRectFilled(start, end, Colors.ToU32(new Vector4(0.035f, 0.037f, 0.045f, 1f)), 8f);
+        dl.AddRect(start, end, Colors.ToU32(new Vector4(1, 1, 1, 0.06f)), 8f);
+        dl.AddText(start + new Vector2(12, 8), Colors.ToU32(new Vector4(1, 1, 1, 0.35f)), "PREVIEW");
+
+        dl.PushClipRect(start + Vector2.One, end - Vector2.One, true);
+        var x = start.X + Math.Max(padX, (width - total) / 2f);
+        for (var i = 0; i < ids.Length; i++)
+        {
+            var y = start.Y + padTop + Math.Max(0f, (height - padTop - padBottom - sizes[i].Y) / 2f);
+            previewHud.DrawPreview(ids[i], new Vector2(MathF.Floor(x), MathF.Floor(y)));
+            x += sizes[i].X + gap;
+        }
+
+        dl.PopClipRect();
+
+        // "Hide" in the top-right corner.
+        var hideSize = ImGui.CalcTextSize("Hide");
+        ImGui.SetCursorScreenPos(new Vector2(end.X - hideSize.X - 14, start.Y + 6));
+        if (ImGui.SmallButton("Hide##preview"))
+        {
+            config.ShowPagePreview = false;
+            Plugin.MarkDirty();
+        }
+
+        ImGui.SetCursorScreenPos(new Vector2(start.X, end.Y));
+        ImGui.Dummy(new Vector2(width, 8));
+    }
+
     /// <summary>"Copy from..." and "Reset" buttons for a page's settings.</summary>
     private static void CopyAndReset<T>(string id, T target, Func<T> defaults, params (string Name, T Source)[] sources)
         where T : class
@@ -540,6 +729,12 @@ public sealed partial class OptionsWindow : Window
         }
 
         Ui.EndCard();
+        if (Ui.ToolbarOpen)
+        {
+            ImGui.SameLine(0, 28);
+            Ui.ToolbarOpen = false;
+        }
+
         ImGui.PushID("actions_" + id);
         if (sources.Length > 0)
         {
@@ -595,6 +790,10 @@ public sealed partial class OptionsWindow : Window
         ModuleSwitch("Unit frames", ref profile.Modules.UnitFrames);
         CopyAndReset("unit_" + title, s, () => DefaultFrame(s),
             ("Player", profile.Player), ("Target", profile.Target), ("Target of Target", profile.TargetOfTarget), ("Focus", profile.Focus));
+        ElementPreview(ReferenceEquals(s, profile.Player) ? "unit.player"
+            : ReferenceEquals(s, profile.Target) ? "unit.target"
+            : ReferenceEquals(s, profile.TargetOfTarget) ? "unit.tot"
+            : "unit.focus");
         var tab = Ui.Tabs("unit", "Frame", "Bars", "Text", "Visibility");
 
         if (Ui.Tab(tab, 0))
@@ -672,6 +871,7 @@ public sealed partial class OptionsWindow : Window
         Ui.PageHeader("Party", "Party frames with role sorting and range fading.");
         ModuleSwitch("Party frames", ref Plugin.Profiles.Current.Modules.PartyFrames);
         CopyAndReset("party", s, () => new Profile().Party);
+        ElementPreview("party");
         var tab = Ui.Tabs("party", "Layout", "Health", "Text", "Trackers", "Buffs & Debuffs", "Visibility");
 
         if (Ui.Tab(tab, 0))
@@ -766,6 +966,7 @@ public sealed partial class OptionsWindow : Window
         Ui.PageHeader("Alliance", "The two other parties in 24-player alliance raids. Shows only in an alliance.");
         ModuleSwitch("Alliance frames", ref Plugin.Profiles.Current.Modules.Alliance);
         CopyAndReset("alliance", s, () => new Profile().Alliance);
+        ElementPreview("alliance");
         var tab = Ui.Tabs("alliance", "Layout", "Text", "Buffs & Debuffs", "Visibility");
 
         if (Ui.Tab(tab, 0))
@@ -821,6 +1022,11 @@ public sealed partial class OptionsWindow : Window
 
             var (title, settings) = bars[i];
             var index = i;
+            if (tab >= 0)
+            {
+                ElementPreview(i == 0 ? "cast.player" : i == 1 ? "cast.target" : "cast.focus");
+            }
+
             CopyAndReset("cast" + i, settings, () => defaultBars[index], ("Player cast bar", profile.PlayerCast), ("Target cast bar", profile.TargetCast), ("Focus cast bar", profile.FocusCast));
             DrawCastBar(title, settings, i == 0);
         }
@@ -875,6 +1081,11 @@ public sealed partial class OptionsWindow : Window
 
             var (title, settings) = groups[i];
             var index = i;
+            if (tab >= 0)
+            {
+                ElementPreview(i == 0 ? "auras.player.buffs" : i == 1 ? "auras.player.debuffs" : "auras.target");
+            }
+
             CopyAndReset("aura" + i, settings, () => defaultGroups[index], ("Player buffs", profile.PlayerBuffs), ("Player debuffs", profile.PlayerDebuffs), ("Target auras", profile.TargetAuras));
             DrawAura(title, settings, i == 0);
         }
