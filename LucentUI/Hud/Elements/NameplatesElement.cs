@@ -9,6 +9,7 @@ using Dalamud.Interface.Textures;
 using LucentUI.Config;
 using LucentUI.Data;
 using LucentUI.Style;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using GameFramework = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework;
 using GameObjectStruct = FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject;
 
@@ -85,6 +86,81 @@ public sealed unsafe class NameplatesElement : HudElement
     /// <summary>Plates hide in Unlock Mode, but stay while settings are previewed so changes show on real units.</summary>
     internal static bool UnlockActive;
 
+    private const int MaxGamePlates = 50;
+    private readonly Dictionary<nint, byte> plateSlots = new();
+
+    // Per unit: where our spot sits relative to the game's own plate node, averaged over time.
+    private readonly Dictionary<ulong, Vector2> gameOffsets = new();
+
+    /// <summary>
+    /// The game moves its own plate node in step with the frame being drawn. Riding on that node (plus our spot's
+    /// slowly averaged offset from it) keeps the plate where we computed it but moving as smoothly as the game's.
+    /// </summary>
+    private Vector2 FollowGamePlate(AddonNamePlate* addon, nint address, ulong key, Vector2 viewportPos, Vector2 projected, float deltaTime)
+    {
+        if (gameOffsets.Count > 400)
+        {
+            gameOffsets.Clear();
+        }
+
+        if (addon == null || addon->NamePlateObjectArray == null || !plateSlots.TryGetValue(address, out var slot) || slot >= MaxGamePlates)
+        {
+            gameOffsets.Remove(key);
+            return projected;
+        }
+
+        var node = addon->NamePlateObjectArray[slot].RootComponentNode;
+        if (node == null)
+        {
+            gameOffsets.Remove(key);
+            return projected;
+        }
+
+        var nodePos = viewportPos + new Vector2(node->AtkResNode.X, node->AtkResNode.Y);
+        var offset = projected - nodePos;
+        if (!float.IsFinite(offset.X) || !float.IsFinite(offset.Y))
+        {
+            return projected;
+        }
+
+        // A big jump means the slot was reused for this unit just now: start over.
+        if (gameOffsets.TryGetValue(key, out var averaged) && Vector2.Distance(averaged, offset) < 80f)
+        {
+            averaged += (offset - averaged) * (1f - MathF.Exp(-Math.Max(0f, deltaTime) / 0.5f));
+        }
+        else
+        {
+            averaged = offset;
+        }
+
+        gameOffsets[key] = averaged;
+        return nodePos + averaged;
+    }
+
+    // Per unit: the whole-pixel spot the plate was last drawn at.
+    private readonly Dictionary<ulong, Vector2> drawnAt = new();
+
+    /// <summary>
+    /// Snaps to whole pixels with a little hysteresis: the plate only moves once the projected spot is a full pixel
+    /// away, so sub-pixel noise from frame to frame cannot make it flicker between two pixels.
+    /// </summary>
+    private Vector2 Steady(ulong key, Vector2 projected)
+    {
+        if (drawnAt.Count > 400)
+        {
+            drawnAt.Clear();
+        }
+
+        if (drawnAt.TryGetValue(key, out var last) && Math.Abs(projected.X - last.X) < 1f && Math.Abs(projected.Y - last.Y) < 1f)
+        {
+            return last;
+        }
+
+        var snapped = new Vector2(MathF.Round(projected.X), MathF.Round(projected.Y));
+        drawnAt[key] = snapped;
+        return snapped;
+    }
+
     // Per unit: plate height above its feet, smoothed so head-bob animations do not shake the plate.
     private readonly Dictionary<ulong, float> heights = new();
 
@@ -98,7 +174,9 @@ public sealed unsafe class NameplatesElement : HudElement
 
         listed.Clear();
 
-        // The game's own nameplate list: who has a nameplate (line of sight, the game's name settings).
+        // The game's own nameplate list: who has a nameplate (line of sight, the game's name settings), and
+        // which of its plate slots shows them.
+        plateSlots.Clear();
         var uiModule = GameFramework.Instance()->GetUIModule();
         var ui3d = uiModule != null ? uiModule->GetUI3DModule() : null;
         if (ui3d != null)
@@ -110,9 +188,13 @@ public sealed unsafe class NameplatesElement : HudElement
                 if (info != null && info->GameObject != null)
                 {
                     listed.Add((nint)info->GameObject);
+                    plateSlots[(nint)info->GameObject] = info->NamePlateIndex;
                 }
             }
         }
+
+        var addon = (AddonNamePlate*)Svc.GameGui.GetAddonByName("NamePlate", 1).Address;
+        var viewportPos = Dalamud.Bindings.ImGui.ImGui.GetMainViewport().Pos;
 
         // With nothing in the game's list (e.g. its nameplates are turned off), use every unit nearby.
         var useList = s.FollowGameNameplates && listed.Count > 0;
@@ -169,18 +251,21 @@ public sealed unsafe class NameplatesElement : HudElement
             }
 
             var key = obj.GameObjectId;
+            // Ignore tiny changes (breathing, idle sway); ease towards real ones (mounting, scaling).
             var height = heights.TryGetValue(key, out var previous)
-                ? previous + (measured - previous) * (1f - MathF.Exp(-Math.Max(0f, deltaTime) / 0.4f))
+                ? Math.Abs(measured - previous) < 0.08f ? previous : previous + (measured - previous) * (1f - MathF.Exp(-Math.Max(0f, deltaTime) / 0.4f))
                 : measured;
             heights[key] = height;
             var world = new Vector3(feet.X, feet.Y + height, feet.Z);
 
             // Prefer the spot the game puts its own nameplate: it moves exactly with the character on screen.
             // Units without a game nameplate fall back to projecting their position.
-            if (!Svc.GameGui.WorldToScreen(world, out var screen))
+            if (!Svc.GameGui.WorldToScreen(world, out var projected))
             {
                 continue;
             }
+
+            var screen = Steady(key, FollowGamePlate(addon, obj.Address, key, viewportPos, projected, deltaTime));
 
             plates.Add(new Plate { Object = obj, Screen = screen + new Vector2(0, s.YOffset), Distance = distance, Mode = mode, IsTarget = isTarget });
         }
