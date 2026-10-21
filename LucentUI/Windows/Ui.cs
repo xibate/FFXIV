@@ -145,10 +145,10 @@ internal static partial class Ui
         if (dualColumns)
         {
             ImGui.BeginTable("##rows", 4, ImGuiTableFlags.SizingStretchProp, new Vector2(width, 0));
-            ImGui.TableSetupColumn("label1", ImGuiTableColumnFlags.WidthStretch, 0.22f);
-            ImGui.TableSetupColumn("control1", ImGuiTableColumnFlags.WidthStretch, 0.28f);
-            ImGui.TableSetupColumn("label2", ImGuiTableColumnFlags.WidthStretch, 0.22f);
-            ImGui.TableSetupColumn("control2", ImGuiTableColumnFlags.WidthStretch, 0.28f);
+            ImGui.TableSetupColumn("label1", ImGuiTableColumnFlags.WidthStretch, 0.27f);
+            ImGui.TableSetupColumn("control1", ImGuiTableColumnFlags.WidthStretch, 0.23f);
+            ImGui.TableSetupColumn("label2", ImGuiTableColumnFlags.WidthStretch, 0.27f);
+            ImGui.TableSetupColumn("control2", ImGuiTableColumnFlags.WidthStretch, 0.23f);
         }
         else
         {

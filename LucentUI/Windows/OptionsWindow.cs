@@ -184,7 +184,7 @@ public sealed partial class OptionsWindow : Window
     {
         hud.SettingsPreview = Plugin.Config.PreviewWhileEditing;
         // Scales with the font, so larger fonts still fit.
-        var sidebarWidth = MathF.Max(250f, ImGui.GetFontSize() * 17f);
+        var sidebarWidth = MathF.Max(210f, ImGui.GetFontSize() * 12f);
 
         using (var sidebar = ImRaii.Child("##sidebar", new Vector2(sidebarWidth, 0), false))
         {
@@ -300,7 +300,7 @@ public sealed partial class OptionsWindow : Window
 
         var unlock = hud.Unlock.Active;
         ImGui.PushStyleColor(ImGuiCol.Button, Colors.Darken(accent, unlock ? 0.1f : 0.45f));
-        if (ImGui.Button(unlock ? "Lock Elements" : "Unlock Elements", new Vector2(-1, 30)))
+        if (ImGui.Button(unlock ? "Lock Elements" : "Unlock Elements", new Vector2(-1, ImGui.GetFrameHeight() + 8f)))
         {
             hud.Unlock.Toggle();
         }
