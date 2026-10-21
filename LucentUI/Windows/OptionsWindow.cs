@@ -183,7 +183,8 @@ public sealed partial class OptionsWindow : Window
     public override void Draw()
     {
         hud.SettingsPreview = Plugin.Config.PreviewWhileEditing;
-        var sidebarWidth = 215f;
+        // Scales with the font, so larger fonts still fit.
+        var sidebarWidth = MathF.Max(250f, ImGui.GetFontSize() * 17f);
 
         using (var sidebar = ImRaii.Child("##sidebar", new Vector2(sidebarWidth, 0), false))
         {
@@ -326,7 +327,7 @@ public sealed partial class OptionsWindow : Window
             ImGui.Spacing();
             var folded = collapsedGroups.Contains(group);
             ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, 1, 1, 0.45f));
-            if (ImGui.Selectable($"{(folded ? "+" : "-")}  {group}##group", false, ImGuiSelectableFlags.None, new Vector2(0, 18)))
+            if (ImGui.Selectable($"{(folded ? "+" : "-")}  {group}##group", false, ImGuiSelectableFlags.None, new Vector2(0, ImGui.GetTextLineHeight() + 6f)))
             {
                 if (!collapsedGroups.Add(group))
                 {
@@ -343,9 +344,11 @@ public sealed partial class OptionsWindow : Window
             foreach (var (target, label) in items)
             {
                 var selected = page == target && search.Length == 0;
+                var rowHeight = MathF.Max(32f, ImGui.GetTextLineHeight() + 16f);
+                var iconColumn = MathF.Max(34f, ImGui.GetFontSize() * 2.2f);
                 var rowStart = ImGui.GetCursorScreenPos();
                 var rowWidth = ImGui.GetContentRegionAvail().X;
-                if (ImGui.Selectable($"##nav{target}", selected, ImGuiSelectableFlags.None, new Vector2(0, 26)))
+                if (ImGui.Selectable($"##nav{target}", selected, ImGuiSelectableFlags.None, new Vector2(0, rowHeight)))
                 {
                     page = target;
                     search = string.Empty;
@@ -354,24 +357,29 @@ public sealed partial class OptionsWindow : Window
                 // Accent bar on the open page, an icon, the name and the module's on/off dot.
                 if (selected)
                 {
-                    dl.AddRectFilled(rowStart, rowStart + new Vector2(3, 26), Colors.ToU32(accent));
+                    dl.AddRectFilled(rowStart, rowStart + new Vector2(3, rowHeight), Colors.ToU32(accent));
                 }
 
-                var textY = rowStart.Y + (26 - ImGui.GetTextLineHeight()) / 2f;
+                var textY = rowStart.Y + (rowHeight - ImGui.GetTextLineHeight()) / 2f;
                 if (PageIcons.TryGetValue(target, out var icon))
                 {
                     using (Svc.PluginInterface.UiBuilder.IconFontHandle.Push())
                     {
                         var iconText = icon.ToIconString();
                         var iconSize = ImGui.CalcTextSize(iconText);
-                        dl.AddText(new Vector2(rowStart.X + 10 + (16 - iconSize.X) / 2f, rowStart.Y + (26 - iconSize.Y) / 2f), Colors.ToU32(selected ? accent : new Vector4(1, 1, 1, 0.6f)), iconText);
+                        dl.AddText(new Vector2(rowStart.X + 8 + (iconColumn - 8 - iconSize.X) / 2f, rowStart.Y + (rowHeight - iconSize.Y) / 2f), Colors.ToU32(selected ? accent : new Vector4(1, 1, 1, 0.6f)), iconText);
                     }
                 }
 
-                dl.AddText(new Vector2(rowStart.X + 34, textY), Colors.ToU32(selected ? Vector4.One : new Vector4(1, 1, 1, 0.85f)), label);
+                // The name is clipped before the module dot so long names never run into it.
+                var textMin = new Vector2(rowStart.X + iconColumn + 4, rowStart.Y);
+                var textMax = new Vector2(rowStart.X + rowWidth - 20, rowStart.Y + rowHeight);
+                dl.PushClipRect(textMin, textMax, true);
+                dl.AddText(new Vector2(textMin.X, textY), Colors.ToU32(selected ? Vector4.One : new Vector4(1, 1, 1, 0.85f)), label);
+                dl.PopClipRect();
                 if (ModuleOn(target, profile) is { } on)
                 {
-                    var dot = new Vector2(rowStart.X + rowWidth - 10, rowStart.Y + 13);
+                    var dot = new Vector2(rowStart.X + rowWidth - 10, rowStart.Y + rowHeight / 2f);
                     dl.AddCircleFilled(dot, 3.5f, Colors.ToU32(on ? Colors.Rgb(0x58D27A) : new Vector4(1, 1, 1, 0.18f)));
                 }
             }
