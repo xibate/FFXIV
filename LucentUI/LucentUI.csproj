@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.22.0.0</Version>
+    <Version>0.23.0.0</Version>
     <!-- Manifest fields picked up by DalamudPackager -->
     <Author>xibate</Author>
     <Name>LucentUI</Name>
@@ -19,6 +19,10 @@ Inspired by EllesmereUI for World of Warcraft.</Description>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Unpacks .7z and .rar media packs (zips use the framework's own reader). -->
+    <PackageReference Include="SharpCompress" Version="0.50.4" />
+  </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Config\Presets\Lucent.lui" LogicalName="LucentUI.Presets.Lucent.lui" />
     <!-- Plugin icon: Dalamud shows images/icon.png next to the plugin; the repository lists it by IconUrl. -->

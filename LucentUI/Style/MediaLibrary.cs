@@ -147,9 +147,9 @@ public sealed class MediaLibrary : IDisposable
     private static readonly string[] PackExtensions = { ".ttf", ".otf", ".tga", ".blp", ".png", ".jpg", ".jpeg", ".lua" };
 
     /// <summary>
-    /// Unpacks media pack zips (e.g. NaowhUI_Media.zip or an addon's media folder) dropped into
+    /// Unpacks media packs (.zip, .7z or .rar, e.g. NaowhUI_Media.zip or an addon's media folder) dropped into
     /// <paramref name="folder"/>: their fonts, textures and Lua registrations go to AddOns/&lt;pack&gt;/ there, so
-    /// SharedMedia names resolve as in WoW. Each zip is unpacked once (again when it changes). Returns how many
+    /// SharedMedia names resolve as in WoW. Each pack is unpacked once (again when it changes). Returns how many
     /// were unpacked now.
     /// </summary>
     public static int ExtractZips(string folder)
@@ -160,35 +160,44 @@ public sealed class MediaLibrary : IDisposable
         }
 
         var count = 0;
-        foreach (var zip in Directory.EnumerateFiles(folder, "*.zip", SearchOption.TopDirectoryOnly))
+        foreach (var pack in Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly))
         {
+            if (!ArchiveExtensions.Contains(Path.GetExtension(pack).ToLowerInvariant()))
+            {
+                continue;
+            }
+
             try
             {
-                if (ExtractZip(zip, Path.Combine(folder, "AddOns")))
+                if (ExtractPack(pack, Path.Combine(folder, "AddOns")))
                 {
                     count++;
                 }
             }
             catch (Exception ex)
             {
-                Svc.Log.Warning($"Could not unpack media pack {zip}: {ex.Message}");
+                Svc.Log.Warning($"Could not unpack media pack {pack}: {ex.Message}");
             }
         }
 
         return count;
     }
 
-    private static bool ExtractZip(string zipPath, string addOnsFolder)
-    {
-        var info = new FileInfo(zipPath);
-        using var archive = System.IO.Compression.ZipFile.OpenRead(zipPath);
+    /// <summary>Archive types accepted as media packs.</summary>
+    public static readonly string[] ArchiveExtensions = { ".zip", ".7z", ".rar" };
 
-        // The pack's folder name: its .toc (at the root or in one top folder), else the zip's own name.
+    private static bool ExtractPack(string packPath, string addOnsFolder)
+    {
+        var info = new FileInfo(packPath);
+        using var archive = SharpCompress.Archives.ArchiveFactory.OpenArchive(packPath, new SharpCompress.Readers.ReaderOptions());
+        var keys = archive.Entries.Where(e => !e.IsDirectory && e.Key != null).Select(e => e.Key!.Replace('\\', '/')).ToList();
+
+        // The pack's folder name: its .toc (at the root or in one top folder), else the archive's own name.
         string? prefix = null;
         string? name = null;
-        foreach (var entry in archive.Entries)
+        foreach (var key in keys)
         {
-            var parts = entry.FullName.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var parts = key.Split('/', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length is 1 or 2 && parts[^1].EndsWith(".toc", StringComparison.OrdinalIgnoreCase) && !parts[^1].StartsWith("Lib", StringComparison.OrdinalIgnoreCase))
             {
                 name = Path.GetFileNameWithoutExtension(parts[^1]);
@@ -197,7 +206,7 @@ public sealed class MediaLibrary : IDisposable
             }
         }
 
-        name ??= Path.GetFileNameWithoutExtension(zipPath);
+        name ??= Path.GetFileNameWithoutExtension(packPath);
         prefix ??= string.Empty;
         var target = Path.GetFullPath(Path.Combine(addOnsFolder, name));
         var marker = Path.Combine(target, ".lucentui-unpacked");
@@ -208,41 +217,70 @@ public sealed class MediaLibrary : IDisposable
         }
 
         Directory.CreateDirectory(target);
-        foreach (var entry in archive.Entries)
+
+        // 7z and solid archives are read in order (jumping between entries would be slow); others entry by entry.
+        if (archive.IsSolid || archive.Type == SharpCompress.Common.ArchiveType.SevenZip)
         {
-            var path = entry.FullName.Replace('\\', '/');
-            if (entry.Length == 0 || !PackExtensions.Contains(Path.GetExtension(path).ToLowerInvariant()))
+            using var reader = archive.ExtractAllEntries();
+            while (reader.MoveToNextEntry())
             {
-                continue;
-            }
-
-            if (prefix.Length > 0)
-            {
-                if (!path.StartsWith(prefix, StringComparison.Ordinal))
+                if (PackDestination(reader.Entry, prefix, target) is { } destination)
                 {
-                    continue;
+                    using var output = File.Create(destination);
+                    reader.WriteEntryTo(output);
                 }
-
-                path = path[prefix.Length..];
             }
-
-            // Never write outside the pack's folder.
-            var destination = Path.GetFullPath(Path.Combine(target, path));
-            if (!destination.StartsWith(target + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        }
+        else
+        {
+            foreach (var entry in archive.Entries)
             {
-                continue;
-            }
-
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            using (var source = entry.Open())
-            using (var output = File.Create(destination))
-            {
-                source.CopyTo(output);
+                if (PackDestination(entry, prefix, target) is { } destination)
+                {
+                    using var source = entry.OpenEntryStream();
+                    using var output = File.Create(destination);
+                    source.CopyTo(output);
+                }
             }
         }
 
         File.WriteAllText(marker, stamp);
         return true;
+    }
+
+    /// <summary>Where a pack entry is unpacked to, or null to skip it (not media, outside the pack, or empty).</summary>
+    private static string? PackDestination(SharpCompress.Common.IEntry entry, string prefix, string target)
+    {
+        if (entry.IsDirectory || entry.Key == null || entry.Size == 0)
+        {
+            return null;
+        }
+
+        var path = entry.Key.Replace('\\', '/');
+        if (!PackExtensions.Contains(Path.GetExtension(path).ToLowerInvariant()))
+        {
+            return null;
+        }
+
+        if (prefix.Length > 0)
+        {
+            if (!path.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            path = path[prefix.Length..];
+        }
+
+        // Never write outside the pack's folder.
+        var destination = Path.GetFullPath(Path.Combine(target, path));
+        if (!destination.StartsWith(target + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        return destination;
     }
 
     public static (Dictionary<string, string> Fonts, Dictionary<string, string> Textures, int Files, List<string> Missing) Scan(List<string> folders, CancellationToken cancel)

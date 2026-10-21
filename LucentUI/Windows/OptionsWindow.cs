@@ -620,16 +620,34 @@ public sealed partial class OptionsWindow : Window
         var media = Plugin.Media;
         var folders = Plugin.Config.MediaFolders;
 
-        Ui.Card("Media Packs", "The easiest way: add a media pack zip (for example NaowhUI_Media.zip or a zip of EllesmereUI's media folder). It is unpacked into LucentUI's media folder on this computer, and its fonts and textures are used by their WoW names. You can also drop zips into the LucentUI media folder yourself.");
-        Ui.Text("Media pack zip", ref newMediaPack, "The full path of the .zip file.", "e.g. C:\\Users\\you\\Downloads\\NaowhUI_Media.zip");
+        Ui.Card("Media Packs", "The easiest way: add a media pack (.zip, .7z or .rar, for example NaowhUI_Media.zip or Media.7z). It is unpacked into LucentUI's media folder on this computer, and its fonts and textures are used by their WoW names (or their file names). You can also drop packs into the LucentUI media folder yourself, or give a folder that is already unpacked.");
+        Ui.Text("Media pack", ref newMediaPack, "The full path of the .zip, .7z or .rar file, or of a folder.", "e.g. C:\\Users\\you\\Downloads\\Media.7z");
         if (Ui.Button("Add pack", "Add media pack"))
         {
             var source = newMediaPack.Trim().Trim('"');
             try
             {
-                System.IO.Directory.CreateDirectory(media.DefaultFolder);
-                System.IO.File.Copy(source, System.IO.Path.Combine(media.DefaultFolder, System.IO.Path.GetFileName(source)), overwrite: true);
-                mediaPackMessage = "Added " + System.IO.Path.GetFileName(source) + ". Unpacking...";
+                if (System.IO.Directory.Exists(source))
+                {
+                    if (!folders.Contains(source, StringComparer.OrdinalIgnoreCase))
+                    {
+                        folders.Add(source);
+                        Plugin.MarkDirty();
+                    }
+
+                    mediaPackMessage = "Added the folder " + source + ". Scanning...";
+                }
+                else if (!MediaLibrary.ArchiveExtensions.Contains(System.IO.Path.GetExtension(source).ToLowerInvariant()))
+                {
+                    throw new InvalidOperationException("use a .zip, .7z or .rar file, or a folder.");
+                }
+                else
+                {
+                    System.IO.Directory.CreateDirectory(media.DefaultFolder);
+                    System.IO.File.Copy(source, System.IO.Path.Combine(media.DefaultFolder, System.IO.Path.GetFileName(source)), overwrite: true);
+                    mediaPackMessage = "Added " + System.IO.Path.GetFileName(source) + ". Unpacking...";
+                }
+
                 newMediaPack = string.Empty;
                 media.Rescan(folders);
             }
@@ -1272,7 +1290,7 @@ public sealed partial class OptionsWindow : Window
             Report(profiles.Delete(profiles.CurrentName), "Profile deleted", "You cannot delete your last profile.");
         }
 
-        Ui.Card("Lucent Profile", "The built-in Lucent layout (EllesmereUI style), scaled to your screen. It uses the Naowh font and textures from NaowhUI_Media: add that zip under Style > Media > Media Packs to see them; otherwise the game font and bar style are used.");
+        Ui.Card("Lucent Profile", "The built-in Lucent layout (EllesmereUI style), scaled to your screen. It uses the Naowh font and textures from NaowhUI_Media: add that pack under Style > Media > Media Packs to see them; otherwise the game font and bar style are used.");
         if (Ui.Button("Lucent", "Add the Lucent profile"))
         {
             var added = profiles.AddLucent(Plugin.ScreenHeight, activate: true);
