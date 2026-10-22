@@ -1021,9 +1021,9 @@ public sealed partial class OptionsWindow : Window
     }
 
     /// <summary>Head marker (attack, bind, ignore, shapes) placement on a frame or nameplate.</summary>
-    private static void DrawMarker(string title, MarkerSettings s)
+    private static void DrawMarker(string title, MarkerSettings s, string description = "The head marker (attack, bind, ignore, square...) placed on the unit.")
     {
-        Ui.Card(title, "The head marker (attack, bind, ignore, square...) placed on the unit.");
+        Ui.Card(title, description);
         Ui.Toggle("Show marker", ref s.Enabled);
         if (!s.Enabled)
         {

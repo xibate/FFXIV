@@ -290,9 +290,9 @@ public sealed unsafe class NameplatesElement : HudElement
         var nameX = pos.X + s.Size.X + SampleGap + SampleNameWidth / 2f;
         var nameBottom = bottom - Math.Max(0f, s.NameOnlyOffset.Y);
         DrawNameText(ctx, s, name, new Vector2(nameX, nameBottom), false, false,
-            s.ShowTitle ? "Warrior of Light" : string.Empty, true, s.ShowFreeCompany ? "LUI" : string.Empty, Markers.SampleIcon);
+            s.ShowTitle ? "Warrior of Light" : string.Empty, true, s.ShowFreeCompany ? "LUI" : string.Empty, Markers.SampleIcon, 0);
         DrawNameText(ctx, s, npc, new Vector2(nameX + SampleNameWidth + SampleGap, nameBottom), false, true,
-            s.ShowTitle ? "Scions of the Seventh Dawn" : string.Empty, false, string.Empty, 0);
+            s.ShowTitle ? "Scions of the Seventh Dawn" : string.Empty, false, string.Empty, 0, 0);
     }
 
     /// <summary>Plates hide in Unlock Mode, but stay while settings are previewed so changes show on real units.</summary>
@@ -567,6 +567,11 @@ public sealed unsafe class NameplatesElement : HudElement
             MarkerIcon.Draw(ctx, s.Marker, icon, min, size);
         }
 
+        if (s.QuestMarker.Enabled)
+        {
+            MarkerIcon.Draw(ctx, s.QuestMarker, NameplateInfo.QuestMarker(obj), min, size);
+        }
+
         if (s.TargetArrows && isTarget)
         {
             // Two arrows pointing at the plate from its sides.
@@ -612,14 +617,16 @@ public sealed unsafe class NameplatesElement : HudElement
         var title = s.ShowTitle ? NameplateInfo.Title(plate.Object) : string.Empty;
         var titleAbove = s.TitlePosition == TitlePlacement.Above || (s.TitlePosition == TitlePlacement.Game && NameplateInfo.TitleAbove(plate.Object));
         var fc = s.ShowFreeCompany && !isNpc ? NameplateInfo.FreeCompany(plate.Object) : string.Empty;
-        DrawNameText(ctx, s, unit, plate.Screen, plate.IsTarget, isNpc, title, titleAbove, fc, s.Marker.Enabled ? Markers.IconFor(plate.Object) : 0);
+        DrawNameText(ctx, s, unit, plate.Screen, plate.IsTarget, isNpc, title, titleAbove, fc,
+            s.Marker.Enabled ? Markers.IconFor(plate.Object) : 0,
+            s.QuestMarker.Enabled ? NameplateInfo.QuestMarker(plate.Object) : 0);
     }
 
     /// <summary>
     /// A name-only plate: the name (with the FC tag after it, if wanted), a title above or below, and the FC tag on
     /// its own line if wanted. The bottom of the block sits on <paramref name="screen"/>, moved by the offset.
     /// </summary>
-    private static void DrawNameText(DrawContext ctx, NameplateSettings s, in UnitData unit, Vector2 screen, bool isTarget, bool isNpc, string title, bool titleAbove, string fc, uint marker)
+    private static void DrawNameText(DrawContext ctx, NameplateSettings s, in UnitData unit, Vector2 screen, bool isTarget, bool isNpc, string title, bool titleAbove, string fc, uint marker, uint quest)
     {
         var name = TextTags.Format(s.NameOnlyText, unit, true);
         if (string.IsNullOrWhiteSpace(name))
@@ -694,6 +701,11 @@ public sealed unsafe class NameplatesElement : HudElement
         {
             var lineSize = new Vector2(anchor.X + nameSize.X / 2f - lineMin.X, nameSize.Y);
             MarkerIcon.Draw(ctx, s.Marker, marker, lineMin, lineSize);
+        }
+
+        if (quest != 0)
+        {
+            MarkerIcon.Draw(ctx, s.QuestMarker, quest, blockMin, blockMax - blockMin);
         }
     }
 

@@ -105,75 +105,168 @@ public sealed class UnlockMode
         DrawToolbar(profile, vpPos, vpSize);
     }
 
+    // Movers under the cursor, smallest first, and how picking cycles through them.
+    private readonly List<(HudElement Element, Vector2 Min, Vector2 Size)> movers = new();
+    private readonly List<int> underMouse = new();
+    private Vector2 lastClick = new(float.NaN);
+    private int cycle;
+    private bool dragging;
+    private Vector2 dragMouse;
+
     private void DrawMovers(Profile profile, Vector2 origin)
     {
         var dl = ImGui.GetWindowDrawList();
         var accent = profile.Style.Accent;
         var layout = profile.Layout;
+        var mouse = ImGui.GetMousePos();
+        var windowHovered = ImGui.IsWindowHovered();
 
+        movers.Clear();
         foreach (var element in elements)
         {
-            if (!element.IsEnabled(profile) || !element.Movable)
+            if (element.IsEnabled(profile) && element.Movable)
             {
-                continue;
+                movers.Add((element, origin + element.GetPosition(profile), Vector2.Max(element.GetSize(profile), new Vector2(12))));
+            }
+        }
+
+        // Everything under the cursor, smallest (most specific) first.
+        underMouse.Clear();
+        if (windowHovered)
+        {
+            for (var i = 0; i < movers.Count; i++)
+            {
+                var (_, min, size) = movers[i];
+                if (mouse.X >= min.X && mouse.Y >= min.Y && mouse.X < min.X + size.X && mouse.Y < min.Y + size.Y)
+                {
+                    underMouse.Add(i);
+                }
             }
 
-            var offset = element.GetPosition(profile);
-            var size = Vector2.Max(element.GetSize(profile), new Vector2(12));
-            var min = origin + offset;
+            underMouse.Sort((x, y) => (movers[x].Size.X * movers[x].Size.Y).CompareTo(movers[y].Size.X * movers[y].Size.Y));
+        }
 
-            ImGui.SetCursorScreenPos(min);
-            ImGui.InvisibleButton("##mover_" + element.Id, size);
-            var hovered = ImGui.IsItemHovered();
+        var hoveredIndex = underMouse.Count > 0 ? underMouse[0] : -1;
 
-            if (ImGui.IsItemActivated())
+        // A selected element under the cursor stays the one you grab, so dragging it works even when it is not the smallest.
+        var selectedHere = underMouse.FindIndex(i => movers[i].Element.Id == selectedId);
+        if (selectedHere >= 0)
+        {
+            hoveredIndex = underMouse[selectedHere];
+        }
+
+        if (underMouse.Count > 0)
+        {
+            ImGui.SetNextFrameWantCaptureMouse(true);
+
+            // Double-click opens the selected element's settings (and does not switch elements).
+            if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
             {
-                selectedId = element.Id;
-                dragStart = offset;
+                if (Selected() is { } toOpen)
+                {
+                    OpenElementSettingsRequested?.Invoke(toOpen.Id);
+                }
             }
 
-            if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left, 0f))
+            // Click again on the same spot (or scroll) to pick the next element underneath.
+            else if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
             {
-                var next = dragStart + ImGui.GetMouseDragDelta(ImGuiMouseButton.Left, 0f);
+                var samePlace = Vector2.Distance(mouse, lastClick) < 3f;
+                cycle = samePlace && underMouse.Count > 1 ? (cycle + 1) % underMouse.Count : Math.Max(0, selectedHere);
+                lastClick = mouse;
+                var picked = movers[underMouse[cycle]];
+                selectedId = picked.Element.Id;
+                hoveredIndex = underMouse[cycle];
+                dragStart = picked.Element.GetPosition(profile);
+                dragMouse = mouse;
+                dragging = true;
+            }
+
+            var wheel = ImGui.GetIO().MouseWheel;
+            if (wheel != 0f && underMouse.Count > 1)
+            {
+                var current = Math.Max(0, selectedHere);
+                cycle = (current + (wheel < 0 ? 1 : underMouse.Count - 1)) % underMouse.Count;
+                selectedId = movers[underMouse[cycle]].Element.Id;
+                hoveredIndex = underMouse[cycle];
+            }
+
+            if (ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+            {
+                movers[hoveredIndex].Element.ResetPosition(profile);
+                Plugin.MarkDirty();
+            }
+        }
+
+        if (dragging)
+        {
+            if (!ImGui.IsMouseDown(ImGuiMouseButton.Left) || Selected() is not { } dragged)
+            {
+                dragging = false;
+            }
+            else if (ImGui.GetMousePos() != dragMouse)
+            {
+                var next = dragStart + (ImGui.GetMousePos() - dragMouse);
                 if (layout.SnapToGrid && !ImGui.GetIO().KeyShift)
                 {
                     next = Snap(next, layout.GridSize);
                 }
 
-                element.SetPosition(profile, Gfx.Floor(next));
+                dragged.SetPosition(profile, Gfx.Floor(next));
                 Plugin.MarkDirty();
             }
+        }
 
-            if (hovered && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+        if (underMouse.Count > 0 && !dragging)
+        {
+            var tip = movers[hoveredIndex].Element.Label + "\nDrag to move (hold Shift to ignore the grid)\nDouble-click to open its settings\nArrow keys nudge, Tab picks the next element\nRight-click to reset";
+            if (underMouse.Count > 1)
             {
-                OpenElementSettingsRequested?.Invoke(element.Id);
+                tip += $"\n\n{underMouse.Count} elements here (click again or scroll to switch):";
+                foreach (var i in underMouse)
+                {
+                    tip += (movers[i].Element.Id == selectedId ? "\n  > " : "\n    ") + movers[i].Element.Label;
+                }
             }
 
-            if (ImGui.IsItemClicked(ImGuiMouseButton.Right))
+            ImGui.SetTooltip(tip);
+        }
+
+        // Draw the selected element last so its box and label are on top.
+        for (var pass = 0; pass < 2; pass++)
+        {
+            for (var i = 0; i < movers.Count; i++)
             {
-                element.ResetPosition(profile);
-                Plugin.MarkDirty();
+                var (element, min, size) = movers[i];
+                var selected = selectedId == element.Id;
+                if (selected != (pass == 1))
+                {
+                    continue;
+                }
+
+                var hovered = i == hoveredIndex;
+                var outline = selected ? accent : hovered ? Colors.Lighten(accent, 0.3f) : new Vector4(1, 1, 1, selectedId != null ? 0.25f : 0.45f);
+                dl.AddRectFilled(min, min + size, Colors.ToU32(Colors.WithAlpha(accent, selected ? 0.22f : hovered ? 0.14f : 0.06f)));
+                dl.AddRect(min, min + size, Colors.ToU32(outline), 0f, default, selected ? 2f : 1f);
+
+                var labelSize = ImGui.CalcTextSize(element.Label);
+                var labelPos = Gfx.Floor(min + new Vector2(4, -labelSize.Y - 2));
+                dl.AddRectFilled(labelPos - new Vector2(3, 1), labelPos + labelSize + new Vector2(3, 1), Colors.ToU32(new Vector4(0, 0, 0, selected ? 0.9f : 0.7f)), 3f);
+                dl.AddText(labelPos, Colors.ToU32(selected ? accent : hovered ? Vector4.One : new Vector4(1, 1, 1, 0.75f)), element.Label);
             }
-
-            if (hovered && !ImGui.IsItemActive())
-            {
-                ImGui.SetTooltip($"{element.Label}\nDrag to move (hold Shift to ignore the grid)\nDouble-click to open its settings\nArrow keys nudge the selected element\nRight-click to reset");
-            }
-
-            var selected = selectedId == element.Id;
-            var outline = selected ? accent : hovered ? Colors.Lighten(accent, 0.3f) : new Vector4(1, 1, 1, 0.45f);
-            dl.AddRectFilled(min, min + size, Colors.ToU32(Colors.WithAlpha(accent, selected ? 0.22f : 0.10f)));
-            dl.AddRect(min, min + size, Colors.ToU32(outline), 0f, default, selected ? 2f : 1f);
-
-            var labelSize = ImGui.CalcTextSize(element.Label);
-            var labelPos = Gfx.Floor(min + new Vector2(4, -labelSize.Y - 2));
-            dl.AddRectFilled(labelPos - new Vector2(3, 1), labelPos + labelSize + new Vector2(3, 1), Colors.ToU32(new Vector4(0, 0, 0, 0.7f)), 3f);
-            dl.AddText(labelPos, Colors.ToU32(selected ? accent : Vector4.One), element.Label);
         }
     }
 
     private void HandleKeyboard(Profile profile)
     {
+        if (!ImGui.GetIO().WantTextInput && ImGui.IsKeyPressed(ImGuiKey.Tab) && movers.Count > 0)
+        {
+            // Tab / Shift+Tab: next / previous element.
+            var index = movers.FindIndex(m => m.Element.Id == selectedId);
+            var advance = ImGui.GetIO().KeyShift ? movers.Count - 1 : 1;
+            selectedId = movers[(index < 0 ? 0 : index + advance) % movers.Count].Element.Id;
+        }
+
         var element = Selected();
         if (element == null || ImGui.GetIO().WantTextInput)
         {
@@ -225,6 +318,26 @@ public sealed class UnlockMode
             }
 
             var selected = Selected();
+            ImGui.SetNextItemWidth(260);
+            if (ImGui.BeginCombo("##pick", selected?.Label ?? "Pick an element..."))
+            {
+                foreach (var (element, _, _) in movers)
+                {
+                    if (ImGui.Selectable(element.Label + "##" + element.Id, element.Id == selectedId))
+                    {
+                        selectedId = element.Id;
+                    }
+                }
+
+                ImGui.EndCombo();
+            }
+
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("Pick any element, even one hidden under another. Tab also steps through them.");
+            }
+
+            selected = Selected();
             if (selected != null)
             {
                 var pos = selected.GetPosition(profile);
@@ -244,7 +357,7 @@ public sealed class UnlockMode
             }
             else
             {
-                ImGui.TextDisabled("Click an element to select it.");
+                ImGui.TextDisabled("Click an element to select it. Click again or scroll to pick one underneath.");
             }
 
             ImGui.Separator();

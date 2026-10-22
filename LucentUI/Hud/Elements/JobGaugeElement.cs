@@ -70,6 +70,11 @@ public sealed class JobGaugeElement : HudElement
     public override Vector2 GetSize(Profile profile)
     {
         var s = profile.JobGauge;
+        if (s.Look == GaugeLook.Arcs)
+        {
+            return new Vector2(s.DialSize);
+        }
+
         var count = 0;
         if (CurrentParts() is { } parts)
         {
@@ -130,14 +135,21 @@ public sealed class JobGaugeElement : HudElement
                     value.Hidden = false;
                     value.Value = value.Max * 0.6f;
                 }
-                else if (s.HideEmptyTimers)
+                else if (s.HideEmptyTimers && s.Look != GaugeLook.Arcs)
                 {
+                    // Dial rings stay (empty) so the others do not jump inwards.
                     continue;
                 }
             }
 
             var color = settings is { CustomColor: true } ? settings.Color : value.Color ?? part.DefaultColor;
             visible.Add((part, value, color));
+        }
+
+        if (s.Look == GaugeLook.Arcs)
+        {
+            ArcGauge.Dial(ctx, s, pos, s.DialSize, visible);
+            return;
         }
 
         var size = new Vector2(s.Width, s.BarHeight);
@@ -151,9 +163,9 @@ public sealed class JobGaugeElement : HudElement
 
     internal static void DrawPart(DrawContext ctx, JobGaugeSettings s, GaugePart part, GaugeValue value, Vector4 color, Vector2 pos, Vector2 size)
     {
-        if (s.Look == GaugeLook.Hybrid)
+        if (s.Look != GaugeLook.Flat)
         {
-            DrawHybridPart(ctx, s, part, value, color, pos, size);
+            DrawHybridPart(ctx, s, part, value, color, pos, size, s.Look == GaugeLook.Classic);
             return;
         }
 
@@ -189,7 +201,7 @@ public sealed class JobGaugeElement : HudElement
         }
     }
 
-    private static void DrawHybridPart(DrawContext ctx, JobGaugeSettings s, GaugePart part, GaugeValue value, Vector4 color, Vector2 pos, Vector2 size)
+    private static void DrawHybridPart(DrawContext ctx, JobGaugeSettings s, GaugePart part, GaugeValue value, Vector4 color, Vector2 pos, Vector2 size, bool classic)
     {
         switch (part.Kind)
         {
@@ -198,7 +210,7 @@ public sealed class JobGaugeElement : HudElement
                 var max = Math.Max(1, (int)value.Max);
                 var filled = (int)value.Value;
                 var shape = part.Shape == GaugeShape.Auto ? GaugeShape.Orb : part.Shape;
-                HybridGauge.Shapes(ctx, pos, size, max, i => i < filled ? color : null, shape);
+                HybridGauge.Shapes(ctx, pos, size, max, i => i < filled ? color : null, shape, classic);
                 break;
             }
 
@@ -206,14 +218,14 @@ public sealed class JobGaugeElement : HudElement
             {
                 var count = Math.Max(1, (int)value.Max);
                 var shape = part.Shape == GaugeShape.Auto ? GaugeShape.Diamond : part.Shape;
-                HybridGauge.Shapes(ctx, pos, size, count, value.PipColor ?? (_ => null), shape);
+                HybridGauge.Shapes(ctx, pos, size, count, value.PipColor ?? (_ => null), shape, classic);
                 break;
             }
 
             default:
             {
                 var segments = part.Segments > 0 ? part.Segments : part.Kind == GaugeKind.Resource && (int)value.Max == 100 ? 2 : 0;
-                var (min, max) = HybridGauge.Bar(ctx, pos, size, value.Hidden ? 0f : value.Fraction, color, segments);
+                var (min, max) = HybridGauge.Bar(ctx, pos, size, value.Hidden ? 0f : value.Fraction, color, segments, classic);
                 if (s.ShowText && !string.IsNullOrEmpty(value.Text))
                 {
                     using var font = s.TextFontSize > 0 ? ctx.Fonts.Push(s.TextFontSize) : ctx.Fonts.PushSmall();

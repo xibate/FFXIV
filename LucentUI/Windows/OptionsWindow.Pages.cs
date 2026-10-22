@@ -93,7 +93,11 @@ public sealed partial class OptionsWindow
         {
             Ui.Card("Job Gauge");
             Ui.Toggle("Enabled", ref s.Enabled);
-            Ui.Enum("Look", ref s.Look, "Flat: LucentUI's bars and square pips. Hybrid: the game's gauge shapes (angled bars split at spending points, diamonds, orbs, lily petals) drawn flat with a soft glow. The bar texture only applies to Flat.");
+            Ui.Enum("Look", ref s.Look, "Flat: LucentUI's bars and square pips. Hybrid: the game's gauge shapes (angled bars split at spending points, diamonds, orbs, lily petals) drawn flat with a soft glow. Classic: the same shapes with a bronze trim, metallic sheen and gold-rimmed gems, closest to the game. Arcs: one round dial, each bar a ring, the main value in the middle (detached bars use the Hybrid look). The bar texture only applies to Flat.");
+            if (s.Look == GaugeLook.Arcs)
+            {
+                Ui.Slider("Dial size", ref s.DialSize, 60f, 400f, "%.0f");
+            }
             Ui.Slider("Width", ref s.Width, 80f, 800f, "%.0f");
             Ui.Slider("Bar height", ref s.BarHeight, 4f, 60f, "%.0f");
             Ui.Slider("Spacing", ref s.Spacing, 0, 20);
@@ -576,6 +580,7 @@ public sealed partial class OptionsWindow
             DrawStatusIcons("Plate Debuffs", s.Debuffs, true, "Debuff icons on health-bar plates. By default only yours, like EllesmereUI.");
             DrawStatusIcons("Plate Buffs", s.Buffs, false, "Buff icons on health-bar plates, e.g. enemy buffs you may want to dispel or wait out.");
             DrawMarker("Plate Marker", s.Marker);
+            DrawMarker("Quest Marker", s.QuestMarker, "The game's quest markers (\"!\" for a new quest, quest targets and the like) on LucentUI's plates. While on, the game's own marker is removed from those units.");
         }
 
         if (Ui.Tab(tab, 4))

@@ -9,7 +9,7 @@ namespace LucentUI.Game;
 
 /// <summary>
 /// Reads titles and free company tags from the game's nameplates (for LucentUI's plates and the {title}/{fc}
-/// tags), and removes the game's own text and head marker from units that LucentUI draws a plate for, so they
+/// tags), and removes the game's own text and quest marker from units that LucentUI draws a plate for, so they
 /// are not shown twice. Quest markers, other icons and the names of everything else stay.
 /// </summary>
 public sealed class GameNameplateHider : IDisposable
@@ -57,13 +57,14 @@ public sealed class GameNameplateHider : IDisposable
                 continue;
             }
 
-            NameplateInfo.Set(handler.GameObjectId, handler.DisplayTitle ? handler.Title.TextValue : string.Empty, handler.IsPrefixTitle, handler.FreeCompanyTag.TextValue);
+            NameplateInfo.Set(handler.GameObjectId, handler.DisplayTitle ? handler.Title.TextValue : string.Empty, handler.IsPrefixTitle, handler.FreeCompanyTag.TextValue, handler.MarkerIconId);
             if (!NameplatesElement.Replaces(s, obj, player))
             {
                 continue;
             }
 
-            if (s.Marker.Enabled && handler.MarkerIconId != 0)
+            // The game's quest marker ("!" and the like) moves onto LucentUI's plate.
+            if (s.QuestMarker.Enabled && handler.MarkerIconId > 0)
             {
                 handler.MarkerIconId = 0;
             }

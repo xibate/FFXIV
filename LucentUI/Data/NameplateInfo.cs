@@ -13,9 +13,9 @@ public static class NameplateInfo
     private static readonly object Gate = new();
     private static readonly Dictionary<ulong, Entry> Entries = new();
 
-    private readonly record struct Entry(string Title, bool TitleAbove, string FreeCompany);
+    private readonly record struct Entry(string Title, bool TitleAbove, string FreeCompany, uint QuestMarker);
 
-    public static void Set(ulong objectId, string title, bool titleAbove, string freeCompany)
+    public static void Set(ulong objectId, string title, bool titleAbove, string freeCompany, int questMarker)
     {
         lock (Gate)
         {
@@ -24,7 +24,7 @@ public static class NameplateInfo
                 Entries.Clear();
             }
 
-            Entries[objectId] = new Entry(Clean(title), titleAbove, Clean(freeCompany));
+            Entries[objectId] = new Entry(Clean(title), titleAbove, Clean(freeCompany), questMarker > 0 ? (uint)questMarker : 0);
         }
     }
 
@@ -33,6 +33,9 @@ public static class NameplateInfo
 
     /// <summary>Whether the game shows the unit's title above its name (prefix titles) rather than below.</summary>
     public static bool TitleAbove(IGameObject? obj) => obj != null && TryGet(obj.GameObjectId, out var e) && e.TitleAbove;
+
+    /// <summary>The quest marker icon the game shows above the unit (e.g. "!" for a new quest), or 0.</summary>
+    public static uint QuestMarker(IGameObject? obj) => obj != null && TryGet(obj.GameObjectId, out var e) ? e.QuestMarker : 0;
 
     /// <summary>The unit's free company tag without brackets, or empty.</summary>
     public static string FreeCompany(IGameObject? obj)

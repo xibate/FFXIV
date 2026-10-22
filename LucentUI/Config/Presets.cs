@@ -18,7 +18,7 @@ public static class Presets
     // Settings measured in pixels; everything else (colours, ratios, times, distances) stays as it is.
     private static readonly HashSet<string> PixelFloats = new()
     {
-        "IconSize", "IconHeight", "Size", "BarHeight", "Width", "CastHeight", "YOffset", "CircleRadius", "Rounding",
+        "IconSize", "IconHeight", "Size", "BarHeight", "Width", "CastHeight", "YOffset", "DialSize", "CircleRadius", "Rounding",
     };
 
     private static readonly HashSet<string> PixelInts = new()

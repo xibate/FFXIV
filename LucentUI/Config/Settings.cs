@@ -391,8 +391,11 @@ public sealed class JobGaugeSettings
     public int Spacing = 3;
     public bool ShowText = true;
 
-    /// <summary>Flat bars (LucentUI) or the game's gauge shapes drawn flat (hybrid).</summary>
+    /// <summary>Flat bars (LucentUI), the game's gauge shapes drawn flat (hybrid), with a bronze trim (classic), or a round dial (arcs).</summary>
     public GaugeLook Look = GaugeLook.Flat;
+
+    /// <summary>Diameter of the dial in the Arcs look.</summary>
+    public float DialSize = 140f;
 
     /// <summary>Size of the numbers on the gauge bars; 0 uses the small font size.</summary>
     public int TextFontSize = 0;
@@ -411,6 +414,12 @@ public enum GaugeLook
 
     /// <summary>Angled bars split at spending points, diamonds, orbs and petals, with a soft glow.</summary>
     Hybrid,
+
+    /// <summary>The same shapes with a bronze trim, metallic sheen and gold-rimmed gems, close to the game.</summary>
+    Classic,
+
+    /// <summary>One round dial: each part a 270° ring, the main value in the middle.</summary>
+    Arcs,
 }
 
 public enum BarAlign
@@ -771,6 +780,9 @@ public sealed class NameplateSettings
     public StatusIconSettings Debuffs = new() { OnlyMine = true, Max = 6, Size = 24f, Anchor = IconAnchor.Top, Outside = true, Offset = new Vector2(0, -16), Border = AuraBorder.ByType };
     public StatusIconSettings Buffs = new() { Enabled = false, Max = 4, Size = 20f, Anchor = IconAnchor.Right, Outside = true };
     public MarkerSettings Marker = new() { Anchor = IconAnchor.Left, Outside = true, Size = 22f };
+
+    /// <summary>Quest markers ("!" for a new quest, quest targets...) the game shows above units.</summary>
+    public MarkerSettings QuestMarker = new() { Anchor = IconAnchor.Top, Outside = true, Size = 30f };
 
     // Layers.
 
