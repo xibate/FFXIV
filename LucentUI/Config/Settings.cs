@@ -30,6 +30,27 @@ public enum VisibilityMode
     Never,
 }
 
+/// <summary>Situations where the game hides its hotbars and HUD; LucentUI can hide too.</summary>
+[System.Flags]
+public enum HideSituation
+{
+    None = 0,
+
+    /// <summary>Talking to NPCs, quest dialogue and other events.</summary>
+    Talking = 1,
+    Crafting = 2,
+
+    /// <summary>Gathering and fishing.</summary>
+    Gathering = 4,
+    Mounted = 8,
+
+    /// <summary>Trading, retainers, the market board, materia melding, housing and similar menus.</summary>
+    Menus = 16,
+
+    /// <summary>Performing, Triple Triad, chocobo racing and other mini-games.</summary>
+    MiniGames = 32,
+}
+
 public enum PartySortMode
 {
     /// <summary>The same order as the game's party list.</summary>
@@ -127,6 +148,9 @@ public sealed class VisibilitySettings
 
     /// <summary>Overall opacity of the element while it is shown.</summary>
     public float Opacity = 1f;
+
+    /// <summary>Extra situations that hide this element (on top of the HUD-wide ones).</summary>
+    public HideSituation HideWhen = HideSituation.None;
 }
 
 /// <summary>Global settings that do not change between profiles.</summary>
@@ -134,6 +158,9 @@ public sealed class GeneralSettings
 {
     public bool ShowHud = true;
     public bool HideWhenGameUiHidden = true;
+
+    /// <summary>Situations that hide the whole HUD, like the game hides its hotbars while talking to NPCs.</summary>
+    public HideSituation HideWhen = HideSituation.Talking;
     public bool ClickToTarget = true;
     public bool RightClickMenu = true;
     public bool MouseoverTarget = true;

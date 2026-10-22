@@ -502,6 +502,9 @@ public sealed partial class OptionsWindow : Window
         Ui.Card("Display");
         Ui.Toggle("Show HUD", ref general.ShowHud, "Master switch. Also available as /lucent toggle.");
         Ui.Toggle("Hide when game UI is hidden", ref general.HideWhenGameUiHidden, "Follows the game's hide-UI key (Scroll Lock by default).");
+
+        Ui.Card("Hide the HUD While", "Like the game hides its hotbars while you talk to NPCs. Never while in combat. Each element can add its own situations in its Visibility settings.");
+        DrawHideSituations(ref general.HideWhen);
         Ui.Toggle("Smooth fades", ref general.SmoothFades, "Fade elements in and out when their visibility rules change.");
         Ui.Toggle("Stay behind game windows", ref general.ClipBehindWindows, "Cut LucentUI away where a game window (inventory, character...) is open on top of it, and let clicks there reach the window.");
         Ui.Enum("Behind windows", ref general.ClipMode, "Clip cuts the covered part away; Hide hides any element a window touches.");
@@ -914,6 +917,28 @@ public sealed partial class OptionsWindow : Window
         Ui.Enum("Show", ref v.Mode);
         Ui.Percent("Opacity", ref v.Opacity, "How see-through the element is while shown.");
         Ui.Percent("Opacity when hidden", ref v.HiddenAlpha, "0% hides it completely; higher values fade it instead.");
+
+        Ui.Card(title + " Hides While", "On top of the HUD-wide situations on the General page. Never while in combat.");
+        DrawHideSituations(ref v.HideWhen);
+    }
+
+    private static void DrawHideSituations(ref HideSituation value)
+    {
+        HideToggle("Talking to NPCs", ref value, HideSituation.Talking, "NPC dialogue, quest events and other interactions.");
+        HideToggle("Crafting", ref value, HideSituation.Crafting);
+        HideToggle("Gathering & fishing", ref value, HideSituation.Gathering);
+        HideToggle("Mounted", ref value, HideSituation.Mounted, "On a mount, riding pillion or flying.");
+        HideToggle("Menus", ref value, HideSituation.Menus, "Trading, retainers, the market board, materia melding, housing and similar menus.");
+        HideToggle("Mini-games & performing", ref value, HideSituation.MiniGames, "Performing, Triple Triad, chocobo racing and other mini-games.");
+    }
+
+    private static void HideToggle(string label, ref HideSituation value, HideSituation flag, string? help = null)
+    {
+        var on = value.HasFlag(flag);
+        if (Ui.Toggle(label, ref on, help))
+        {
+            value = on ? value | flag : value & ~flag;
+        }
     }
 
     private static void DrawTextSlot(string title, ref string template, TextStyle style)

@@ -341,7 +341,7 @@ public sealed class HudRenderer : IDisposable
             return true;
         }
 
-        return general.ShowHud && !(general.HideWhenGameUiHidden && Svc.GameGui.GameUiHidden);
+        return general.ShowHud && !(general.HideWhenGameUiHidden && Svc.GameGui.GameUiHidden) && !Visibility.InSituation(general.HideWhen);
     }
 
     public void Dispose()

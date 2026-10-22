@@ -30,7 +30,7 @@ Core systems, following EllesmereUI's ideas:
 - **Lucent profile**: a built-in EllesmereUI-style layout, scaled to your screen. New installs start with it; anyone can add it again from the Profiles page.
 - **Profiles**: create, copy, rename, reset, and share them as text (export/import via clipboard). Assign a profile to each job and it loads when you switch.
 - **EllesmereUI import**: paste an EllesmereUI profile string (`!EUI_...`) and it is converted to a LucentUI profile (see below).
-- **Visibility rules** per element: always, in combat, in combat or targeting, out of combat, in duty, or never, with an optional faded opacity instead of hiding.
+- **Visibility rules** per element: always, in combat, in combat or targeting, out of combat, in duty, or never, with an optional faded opacity instead of hiding. Like the game's hotbars, the HUD hides while you talk to NPCs (on by default); it can also hide while crafting, gathering, mounted, in menus or mini-games, for the whole HUD or per element, and never while in combat.
 - **Stay behind game windows**: optional; LucentUI is cut away (or hidden) where a game window such as the inventory is open on top of it, and clicks there reach the window.
 - **Searchable options**: type in the search box to find any setting across all pages.
 - **Zero cost when off, no change without opt-in**: disabled modules draw and hook nothing, and the game's HUD is untouched until you choose to hide parts of it.
