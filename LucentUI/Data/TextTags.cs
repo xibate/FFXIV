@@ -8,12 +8,12 @@ namespace LucentUI.Data;
 /// <summary>
 /// Expands text templates such as <c>"{name} {hp:pct}%"</c>.
 /// Supported tags: {name} {name:N} {name:first} {level} {job} {hp} {hp:max} {hp:pct} {hp:deficit}
-/// {mp} {mp:max} {mp:pct}.
+/// {mp} {mp:max} {mp:pct} {title} {fc} (add :plain for no brackets).
 /// </summary>
 public static partial class TextTags
 {
     public const string Help =
-        "Tags: {name}  {name:12}  {name:first}  {level}  {job}  {hp}  {hp:max}  {hp:pct}  {hp:deficit}  {mp}  {mp:max}  {mp:pct}";
+        "Tags: {name}  {name:12}  {name:first}  {level}  {job}  {hp}  {hp:max}  {hp:pct}  {hp:deficit}  {mp}  {mp:max}  {mp:pct}  {title}  {fc}";
 
     // {tag} or [tag], with an optional :argument.
     [GeneratedRegex(@"[\{\[]([a-zA-Z]+)(?::([a-zA-Z0-9]+))?[\}\]]")]
@@ -63,6 +63,14 @@ public static partial class TextTags
 
             case "job":
                 return u.JobId > 0 ? Jobs.Get(u.JobId).Abbreviation : string.Empty;
+
+            case "title":
+                var title = NameplateInfo.Title(u.Object);
+                return title.Length == 0 || arg == "plain" ? title : "«" + title + "»";
+
+            case "fc":
+                var fcTag = NameplateInfo.FreeCompany(u.Object);
+                return fcTag.Length == 0 || arg == "plain" ? fcTag : "«" + fcTag + "»";
 
             case "hp":
                 return u.HasHealth ? Value(u.Hp, u.MaxHp, arg, abbreviate) : string.Empty;

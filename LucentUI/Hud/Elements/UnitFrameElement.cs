@@ -70,6 +70,8 @@ public sealed class UnitFrameElement : HudElement
         UnitBar.Render(ctx, pos, s.Size, unit, new UnitBarOptions
         {
             Texture = s.Texture,
+            Marker = s.Marker,
+            PreviewMarker = kind == UnitKind.Target,
             ShowPower = s.ShowPower,
             PowerHeight = s.PowerHeight,
             PowerPosition = s.PowerPosition,

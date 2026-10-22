@@ -2,13 +2,15 @@ using System;
 using System.Collections.Generic;
 using Dalamud.Game.Gui.NamePlate;
 using LucentUI.Config;
+using LucentUI.Data;
 using LucentUI.Hud.Elements;
 
 namespace LucentUI.Game;
 
 /// <summary>
-/// Removes the game's own nameplate text from units that LucentUI draws a plate for, so names are not shown
-/// twice. Quest markers, icons and the names of everything else stay.
+/// Reads titles and free company tags from the game's nameplates (for LucentUI's plates and the {title}/{fc}
+/// tags), and removes the game's own text and head marker from units that LucentUI draws a plate for, so they
+/// are not shown twice. Quest markers, other icons and the names of everything else stay.
 /// </summary>
 public sealed class GameNameplateHider : IDisposable
 {
@@ -17,7 +19,7 @@ public sealed class GameNameplateHider : IDisposable
     public void Update(Profile profile)
     {
         var s = profile.Nameplates;
-        var wanted = profile.Modules.Nameplates && s.Enabled && s.GameNameplates == GameNameplateMode.HideReplaced;
+        var wanted = profile.Modules.Nameplates && s.Enabled;
         if (wanted == active)
         {
             return;
@@ -46,10 +48,27 @@ public sealed class GameNameplateHider : IDisposable
         }
 
         var s = Plugin.Profiles.Current.Nameplates;
+        var hideText = s.GameNameplates == GameNameplateMode.HideReplaced;
         foreach (var handler in handlers)
         {
             var obj = handler.GameObject;
-            if (obj == null || !NameplatesElement.Replaces(s, obj, player))
+            if (obj == null)
+            {
+                continue;
+            }
+
+            NameplateInfo.Set(handler.GameObjectId, handler.DisplayTitle ? handler.Title.TextValue : string.Empty, handler.IsPrefixTitle, handler.FreeCompanyTag.TextValue);
+            if (!NameplatesElement.Replaces(s, obj, player))
+            {
+                continue;
+            }
+
+            if (s.Marker.Enabled && handler.MarkerIconId != 0)
+            {
+                handler.MarkerIconId = 0;
+            }
+
+            if (!hideText)
             {
                 continue;
             }

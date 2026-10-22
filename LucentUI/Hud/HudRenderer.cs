@@ -4,6 +4,7 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
 using LucentUI.Data;
+using LucentUI.Config;
 using LucentUI.Hud.Elements;
 using LucentUI.Style;
 
@@ -218,36 +219,56 @@ public sealed class HudRenderer : IDisposable
         var profile = ctx.Profile;
         var delta = ImGui.GetIO().DeltaTime;
 
+        // Nameplates normally go under the frames, like the game's; "above the HUD" draws them last.
+        var platesOnTop = profile.Nameplates.Layer == NameplateLayer.AboveHud;
+        HudElement? plates = null;
         foreach (var element in Elements)
         {
-            if (!element.IsEnabled(profile))
+            if (platesOnTop && element is NameplatesElement)
             {
+                plates = element;
                 continue;
             }
 
-            var alpha = ctx.Preview ? 1f : CurrentAlpha(element, Visibility.TargetAlpha(element.GetVisibility(profile)), delta);
-            if (alpha <= 0.001f)
-            {
-                continue;
-            }
+            DrawElement(element, origin, delta);
+        }
 
-            ctx.Alpha = alpha;
-            try
-            {
-                using var font = fonts.PushMain();
-                DrawClipped(element, origin + element.GetPosition(profile));
-            }
-            catch (Exception ex)
-            {
-                // Log once per element so a single broken element cannot flood the log.
-                if (failedElements.Add(element.Id))
-                {
-                    Svc.Log.Error(ex, $"Failed to draw {element.Id}");
-                }
-            }
+        if (plates != null)
+        {
+            DrawElement(plates, origin, delta);
         }
 
         ctx.Alpha = 1f;
+    }
+
+    private void DrawElement(HudElement element, Vector2 origin, float delta)
+    {
+        var profile = ctx.Profile;
+        if (!element.IsEnabled(profile))
+        {
+            return;
+        }
+
+        var alpha = ctx.Preview ? 1f : CurrentAlpha(element, Visibility.TargetAlpha(element.GetVisibility(profile)), delta);
+        if (alpha <= 0.001f)
+        {
+            return;
+        }
+
+        ctx.Alpha = alpha;
+        try
+        {
+            using var font = fonts.PushMain();
+            DrawClipped(element, origin + element.GetPosition(profile));
+        }
+        catch (Exception ex)
+        {
+            // Log once per element so a single broken element cannot flood the log.
+            if (failedElements.Add(element.Id))
+            {
+                Svc.Log.Error(ex, $"Failed to draw {element.Id}");
+            }
+        }
     }
 
     /// <summary>Draws an element, cut away (or hidden) where a game window covers it.</summary>

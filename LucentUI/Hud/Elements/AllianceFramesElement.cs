@@ -100,6 +100,8 @@ public sealed unsafe class AllianceFramesElement : HudElement
                     ColorMode = s.ColorMode,
                     ShowShield = s.ShowShield,
                     Shields = s.OwnShieldStyle ? s.Shields : null,
+                    Marker = s.Marker,
+                    PreviewMarker = g == 0 && i == 0,
                     Highlight = isTarget,
                     Hovered = hovered,
                     FadeOutOfRange = s.RangeFade,

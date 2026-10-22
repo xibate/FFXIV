@@ -6,6 +6,9 @@ using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Interface.Textures;
+using Dalamud.Game.ClientState.Conditions;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using LucentUI.Hud;
 using LucentUI.Config;
 using LucentUI.Data;
 using LucentUI.Style;
@@ -60,42 +63,205 @@ public sealed unsafe class NameplatesElement : HudElement
 
         // Far plates first so nearer ones (and the target, last) end up on top.
         plates.Sort((a, b) => a.IsTarget != b.IsTarget ? (a.IsTarget ? 1 : -1) : b.Distance.CompareTo(a.Distance));
-
-        var savedAlpha = ctx.Alpha;
-        foreach (var plate in plates)
+        if (s.Stacking)
         {
-            if (!Units.TryRead(plate.Object, out var unit))
-            {
-                continue;
-            }
-
-            ctx.Alpha = savedAlpha * (target != null && !plate.IsTarget ? Math.Clamp(s.NonTargetAlpha, 0f, 1f) : 1f);
-            if (plate.Mode == PlateMode.Bar && unit.HasHealth)
-            {
-                DrawBarPlate(ctx, s, unit, plate);
-            }
-            else
-            {
-                DrawNamePlate(ctx, s, unit, plate, IsFriendlyNpc(plate.Object));
-            }
+            Stack(s, ctx.DeltaTime);
         }
 
-        ctx.Alpha = savedAlpha;
+        var threat = ThreatActive(s);
+        if (threat)
+        {
+            ReadEnmity();
+        }
+
+        var isTank = Jobs.Get(player.ClassJob.RowId).Role == JobRole.Tank;
+
+        // Layers: bars, then icons, then all text, so names are never covered by another plate's bar or icons.
+        var dl = ctx.DrawList;
+        var layered = s.TextOnTop;
+        if (layered)
+        {
+            dl.ChannelsSplit(3);
+            dl.ChannelsSetCurrent(0);
+            ctx.TextChannel = 2;
+            ctx.BaseChannel = 0;
+        }
+
+        var savedAlpha = ctx.Alpha;
+        try
+        {
+            foreach (var plate in plates)
+            {
+                if (!Units.TryRead(plate.Object, out var unit))
+                {
+                    continue;
+                }
+
+                ctx.Alpha = savedAlpha * (target != null && !plate.IsTarget ? Math.Clamp(s.NonTargetAlpha, 0f, 1f) : 1f);
+                if (plate.Mode == PlateMode.Bar && unit.HasHealth)
+                {
+                    DrawBarPlate(ctx, s, unit, plate, threat ? ThreatColor(s, plate.Object, isTank) : null);
+                }
+                else
+                {
+                    DrawNamePlate(ctx, s, unit, plate, IsFriendlyNpc(plate.Object));
+                }
+            }
+        }
+        finally
+        {
+            ctx.Alpha = savedAlpha;
+            if (layered)
+            {
+                ctx.TextChannel = -1;
+                ctx.BaseChannel = 0;
+                dl.ChannelsMerge();
+            }
+        }
     }
 
     private static bool IsFriendlyNpc(IGameObject obj) =>
         obj.ObjectKind is ObjectKind.EventNpc or ObjectKind.Retainer or ObjectKind.Companion;
 
+    /// <summary>While on, drawing goes to the icon layer (between bars and text).</summary>
+    private static void IconLayer(DrawContext ctx, bool on)
+    {
+        if (ctx.TextChannel < 0)
+        {
+            return;
+        }
+
+        ctx.BaseChannel = on ? 1 : 0;
+        ctx.DrawList.ChannelsSetCurrent(ctx.BaseChannel);
+    }
+
+    // Threat: your enmity on each enemy (100 = you are at the top of its list), read once per frame.
+    private static readonly Dictionary<uint, int> Enmity = new();
+
+    private static bool ThreatActive(NameplateSettings s) => s.Threat switch
+    {
+        ThreatMode.Always => true,
+        ThreatMode.InDuties => Svc.Condition[ConditionFlag.BoundByDuty] || Svc.Condition[ConditionFlag.BoundByDuty56] || Svc.Condition[ConditionFlag.BoundByDuty95],
+        _ => false,
+    };
+
+    private static void ReadEnmity()
+    {
+        Enmity.Clear();
+        var ui = UIState.Instance();
+        if (ui == null)
+        {
+            return;
+        }
+
+        ref var hater = ref ui->Hater;
+        var count = Math.Min(hater.HaterCount, hater.Haters.Length);
+        for (var i = 0; i < count; i++)
+        {
+            Enmity[hater.Haters[i].EntityId] = hater.Haters[i].Enmity;
+        }
+    }
+
+    /// <summary>Tanks: green with aggro, yellow when close, red without. Others: red with aggro, yellow when close.</summary>
+    private static Vector4? ThreatColor(NameplateSettings s, IGameObject obj, bool isTank)
+    {
+        if (obj is not IBattleNpc { BattleNpcKind: BattleNpcSubKind.Combatant } || !Enmity.TryGetValue(obj.EntityId, out var value))
+        {
+            return null;
+        }
+
+        if (isTank)
+        {
+            return value >= 100 ? s.TankHasAggro : value >= 50 ? s.TankLosingAggro : s.TankNoAggro;
+        }
+
+        return value >= 100 ? s.DpsHasAggro : value >= 80 ? s.DpsNearAggro : null;
+    }
+
+    // Stacking: per unit, how far its plate is currently lifted (eased so plates glide instead of jumping).
+    private static readonly Dictionary<ulong, float> StackLift = new();
+    private readonly List<(float Left, float Right, float Top, float Bottom)> placed = new();
+    private readonly List<int> stackOrder = new();
+
+    /// <summary>Lifts enemy bar plates that would overlap a nearer one, so every plate and name stays readable.</summary>
+    private void Stack(NameplateSettings s, float deltaTime)
+    {
+        if (StackLift.Count > 400)
+        {
+            StackLift.Clear();
+        }
+
+        var height = s.Size.Y + (s.ShowCast ? s.CastHeight + 1f : 0f) + Math.Max(0f, -Math.Min(s.LeftStyle.Offset.Y, s.RightStyle.Offset.Y)) + 2f;
+        var halfWidth = s.Size.X / 2f;
+
+        stackOrder.Clear();
+        for (var i = 0; i < plates.Count; i++)
+        {
+            if (plates[i].Mode == PlateMode.Bar)
+            {
+                stackOrder.Add(i);
+            }
+        }
+
+        // Nearest plates keep their spot; farther ones move up out of the way.
+        stackOrder.Sort((a, b) => plates[a].Distance.CompareTo(plates[b].Distance));
+        placed.Clear();
+        foreach (var index in stackOrder)
+        {
+            var plate = plates[index];
+            var lift = 0f;
+            for (var pass = 0; pass < 12; pass++)
+            {
+                var bottom = plate.Screen.Y - lift;
+                var top = bottom - height;
+                var moved = false;
+                foreach (var r in placed)
+                {
+                    if (plate.Screen.X + halfWidth > r.Left && plate.Screen.X - halfWidth < r.Right && bottom > r.Top && top < r.Bottom)
+                    {
+                        lift = plate.Screen.Y - r.Top;
+                        moved = true;
+                    }
+                }
+
+                if (!moved)
+                {
+                    break;
+                }
+            }
+
+            placed.Add((plate.Screen.X - halfWidth, plate.Screen.X + halfWidth, plate.Screen.Y - lift - height, plate.Screen.Y - lift));
+
+            var key = plate.Object.GameObjectId;
+            StackLift.TryGetValue(key, out var shown);
+            shown += (lift - shown) * Math.Min(1f, deltaTime * 12f);
+            if (Math.Abs(lift - shown) < 0.5f)
+            {
+                shown = lift;
+            }
+
+            StackLift[key] = shown;
+            plate.Screen.Y -= MathF.Round(shown);
+            plates[index] = plate;
+        }
+    }
+
     // Settings preview: an enemy health-bar plate (with a cast), a player name and an NPC name.
     private const float SampleGap = 36f;
-    private const float SampleNameWidth = 150f;
+    private const float SampleNameWidth = 170f;
 
     public override Vector2 GetPreviewSize(Profile profile)
     {
         var s = profile.Nameplates;
         var castHeight = s.ShowCast ? s.CastHeight + 1f : 0f;
-        var nameHeight = (s.NameOnlyFontSize > 0 ? s.NameOnlyFontSize : profile.Style.FontSize) + 6f + Math.Abs(s.NameOnlyOffset.Y);
-        return new Vector2(s.Size.X + 2 * (SampleGap + SampleNameWidth), Math.Max(s.Size.Y + castHeight, nameHeight));
+        var iconsAbove = s.Debuffs.Enabled && s.Debuffs.Outside && s.Debuffs.Anchor is IconAnchor.Top or IconAnchor.TopLeft or IconAnchor.TopRight
+            ? s.Debuffs.Size + 3f + Math.Max(0f, -s.Debuffs.Offset.Y)
+            : 0f;
+        var small = s.TitleFontSize > 0 ? s.TitleFontSize : profile.Style.SmallFontSize;
+        var nameHeight = (s.NameOnlyFontSize > 0 ? s.NameOnlyFontSize : profile.Style.FontSize) + 6f + Math.Abs(s.NameOnlyOffset.Y)
+            + (s.ShowTitle ? small + 2f : 0f)
+            + (s.ShowFreeCompany && s.FreeCompanyPosition == FreeCompanyPlacement.Below ? small + 2f : 0f);
+        return new Vector2(s.Size.X + 2 * (SampleGap + SampleNameWidth), Math.Max(s.Size.Y + castHeight + iconsAbove, nameHeight));
     }
 
     public override void DrawSample(DrawContext ctx, Vector2 pos)
@@ -106,21 +272,27 @@ public sealed unsafe class NameplatesElement : HudElement
 
         var enemy = Units.Sample("Striking Dummy", 0, 0.62f, UnitReaction.Hostile, 0f);
         var castHeight = s.ShowCast ? MathF.Round(s.CastHeight) : 0f;
+        var barSize = Gfx.Floor(s.Size);
         var barMin = Gfx.Floor(new Vector2(pos.X, bottom - s.Size.Y - (s.ShowCast ? castHeight + 1 : 0)));
-        DrawBarUnit(ctx, s, enemy, barMin, Gfx.Floor(s.Size), false, false);
+        var threat = s.Threat != ThreatMode.Off ? s.TankHasAggro : (Vector4?)null;
+        DrawBarUnit(ctx, s, enemy, barMin, barSize, true, false, threat);
         if (s.ShowCast)
         {
             var cast = new CastData { Name = "Fire IV", Icon = 2660, Current = 1.1f, Total = 2.8f, Interruptible = false };
-            DrawCast(ctx, s, cast, new Vector2(barMin.X, barMin.Y + MathF.Floor(s.Size.Y) + 1), new Vector2(MathF.Floor(s.Size.X), castHeight));
+            DrawCast(ctx, s, cast, new Vector2(barMin.X, barMin.Y + barSize.Y + 1), new Vector2(barSize.X, castHeight));
         }
+
+        DrawPlateIcons(ctx, s, null, barMin, barSize, true);
 
         var player = Svc.ObjectTable.LocalPlayer;
         var name = Units.Sample(player?.Name.TextValue ?? "Your Name", player?.ClassJob.RowId ?? 19u, 1f, UnitReaction.Player, 0f);
         var npc = Units.Sample("Alphinaud", 0, 1f, UnitReaction.Friendly, 0f);
         var nameX = pos.X + s.Size.X + SampleGap + SampleNameWidth / 2f;
         var nameBottom = bottom - Math.Max(0f, s.NameOnlyOffset.Y);
-        DrawNameText(ctx, s, name, new Vector2(nameX, nameBottom), false, false);
-        DrawNameText(ctx, s, npc, new Vector2(nameX + SampleNameWidth + SampleGap, nameBottom), false, true);
+        DrawNameText(ctx, s, name, new Vector2(nameX, nameBottom), false, false,
+            s.ShowTitle ? "Warrior of Light" : string.Empty, true, s.ShowFreeCompany ? "LUI" : string.Empty, Markers.SampleIcon);
+        DrawNameText(ctx, s, npc, new Vector2(nameX + SampleNameWidth + SampleGap, nameBottom), false, true,
+            s.ShowTitle ? "Scions of the Seventh Dawn" : string.Empty, false, string.Empty, 0);
     }
 
     /// <summary>Plates hide in Unlock Mode, but stay while settings are previewed so changes show on real units.</summary>
@@ -320,7 +492,10 @@ public sealed unsafe class NameplatesElement : HudElement
         }
     }
 
-    private static void DrawBarPlate(DrawContext ctx, NameplateSettings s, in UnitData unit, in Plate plate)
+    private static readonly StatusIcons DebuffIcons = new();
+    private static readonly StatusIcons BuffIcons = new();
+
+    private static void DrawBarPlate(DrawContext ctx, NameplateSettings s, in UnitData unit, in Plate plate, Vector4? fill)
     {
         var scale = plate.IsTarget ? Math.Clamp(s.TargetScale, 1f, 2f) : 1f;
         var size = Gfx.Floor(s.Size * scale);
@@ -335,15 +510,17 @@ public sealed unsafe class NameplatesElement : HudElement
         }
 
         var hovered = s.Interactive && ctx.Input.HandleUnit(min, min + size, unit.Object, ctx.General);
-        DrawBarUnit(ctx, s, unit, min, size, plate.IsTarget, hovered);
+        DrawBarUnit(ctx, s, unit, min, size, plate.IsTarget, hovered, fill);
 
         if (hasCast && Casts.TryGet(unit.Object, out var cast))
         {
             DrawCast(ctx, s, cast, new Vector2(min.X, min.Y + size.Y + 1), new Vector2(size.X, castHeight));
         }
+
+        DrawPlateIcons(ctx, s, unit.Object, min, size, plate.IsTarget);
     }
 
-    private static void DrawBarUnit(DrawContext ctx, NameplateSettings s, in UnitData unit, Vector2 min, Vector2 size, bool isTarget, bool hovered)
+    private static void DrawBarUnit(DrawContext ctx, NameplateSettings s, in UnitData unit, Vector2 min, Vector2 size, bool isTarget, bool hovered, Vector4? fill)
     {
         UnitBar.Render(ctx, min, size, unit, new UnitBarOptions
         {
@@ -359,8 +536,51 @@ public sealed unsafe class NameplatesElement : HudElement
             ShowShield = s.ShowShield,
             Highlight = s.HighlightTarget && isTarget,
             Hovered = hovered,
+            FillColor = fill,
             SmoothKey = unit.Object != null ? DrawContext.Key("nameplate", unit.Object.GameObjectId) : 0,
         });
+
+        // Execute line: where the health bar reaches the chosen percentage.
+        if (s.ExecutePercent > 0 && s.ExecutePercent < 100 && unit.Reaction == UnitReaction.Hostile)
+        {
+            var b = Math.Max(0, ctx.Style.BorderSize);
+            var x = MathF.Round(min.X + b + (size.X - 2 * b) * s.ExecutePercent / 100f);
+            ctx.DrawList.AddRectFilled(new Vector2(x - 1, min.Y + b), new Vector2(x + 1, min.Y + size.Y - b), ctx.Col(new Vector4(1, 1, 1, 0.85f)));
+        }
+    }
+
+    /// <summary>Debuffs, buffs, head marker and target arrows around a health-bar plate.</summary>
+    private static void DrawPlateIcons(DrawContext ctx, NameplateSettings s, IGameObject? obj, Vector2 min, Vector2 size, bool isTarget)
+    {
+        IconLayer(ctx, true);
+        DebuffIcons.Draw(ctx, s.Debuffs, obj, true, min, size);
+        BuffIcons.Draw(ctx, s.Buffs, obj, false, min, size);
+
+        if (s.Marker.Enabled)
+        {
+            var icon = Markers.IconFor(obj);
+            if (icon == 0 && obj == null && ctx.Preview)
+            {
+                icon = Markers.SampleIcon;
+            }
+
+            MarkerIcon.Draw(ctx, s.Marker, icon, min, size);
+        }
+
+        if (s.TargetArrows && isTarget)
+        {
+            // Two arrows pointing at the plate from its sides.
+            var h = MathF.Max(8f, size.Y);
+            var w = MathF.Round(h * 0.6f);
+            var cy = min.Y + size.Y / 2f;
+            var color = ctx.Col(s.TargetArrowColor);
+            var left = min.X - 4f;
+            var right = min.X + size.X + 4f;
+            ctx.DrawList.AddTriangleFilled(new Vector2(left - w, cy - h / 2f), new Vector2(left, cy), new Vector2(left - w, cy + h / 2f), color);
+            ctx.DrawList.AddTriangleFilled(new Vector2(right + w, cy - h / 2f), new Vector2(right + w, cy + h / 2f), new Vector2(right, cy), color);
+        }
+
+        IconLayer(ctx, false);
     }
 
     private static void DrawCast(DrawContext ctx, NameplateSettings s, in CastData cast, Vector2 pos, Vector2 size)
@@ -389,36 +609,110 @@ public sealed unsafe class NameplatesElement : HudElement
             return;
         }
 
-        DrawNameText(ctx, s, unit, plate.Screen, plate.IsTarget, isNpc);
+        var title = s.ShowTitle ? NameplateInfo.Title(plate.Object) : string.Empty;
+        var titleAbove = s.TitlePosition == TitlePlacement.Above || (s.TitlePosition == TitlePlacement.Game && NameplateInfo.TitleAbove(plate.Object));
+        var fc = s.ShowFreeCompany && !isNpc ? NameplateInfo.FreeCompany(plate.Object) : string.Empty;
+        DrawNameText(ctx, s, unit, plate.Screen, plate.IsTarget, isNpc, title, titleAbove, fc, s.Marker.Enabled ? Markers.IconFor(plate.Object) : 0);
     }
 
-    /// <summary>A name-only plate: its text's bottom centre sits on <paramref name="screen"/>, moved by the offset.</summary>
-    private static void DrawNameText(DrawContext ctx, NameplateSettings s, in UnitData unit, Vector2 screen, bool isTarget, bool isNpc)
+    /// <summary>
+    /// A name-only plate: the name (with the FC tag after it, if wanted), a title above or below, and the FC tag on
+    /// its own line if wanted. The bottom of the block sits on <paramref name="screen"/>, moved by the offset.
+    /// </summary>
+    private static void DrawNameText(DrawContext ctx, NameplateSettings s, in UnitData unit, Vector2 screen, bool isTarget, bool isNpc, string title, bool titleAbove, string fc, uint marker)
     {
-        var text = TextTags.Format(s.NameOnlyText, unit, true);
-        if (string.IsNullOrWhiteSpace(text))
+        var name = TextTags.Format(s.NameOnlyText, unit, true);
+        if (string.IsNullOrWhiteSpace(name))
         {
             return;
         }
 
         var scale = isTarget ? Math.Clamp(s.TargetScale, 1f, 2f) : 1f;
-        var fontSize = (int)MathF.Round((s.NameOnlyFontSize > 0 ? s.NameOnlyFontSize : ctx.Style.FontSize) * scale);
-        using var font = ctx.Fonts.Push(fontSize);
+        var nameFont = (int)MathF.Round((s.NameOnlyFontSize > 0 ? s.NameOnlyFontSize : ctx.Style.FontSize) * scale);
+        var smallFont = (int)MathF.Round((s.TitleFontSize > 0 ? s.TitleFontSize : ctx.Style.SmallFontSize) * scale);
 
-        var textSize = Dalamud.Bindings.ImGui.ImGui.CalcTextSize(text);
-        var anchor = Gfx.Floor(screen - new Vector2(0, textSize.Y / 2f) + s.NameOnlyOffset * scale);
-        var min = anchor - textSize / 2f;
-        var max = anchor + textSize / 2f;
+        var fcAfterName = fc.Length > 0 && s.FreeCompanyPosition == FreeCompanyPlacement.AfterName;
+        var nameLine = fcAfterName ? name + "  «" + fc + "»" : name;
+        var titleLine = title.Length > 0 ? "«" + title + "»" : string.Empty;
+        var fcLine = fc.Length > 0 && !fcAfterName ? "«" + fc + "»" : string.Empty;
 
-        var hovered = s.Interactive && ctx.Input.HandleUnit(min, max, unit.Object, ctx.General);
+        var nameSize = Measure(ctx, nameLine, nameFont);
+        var titleSize = Measure(ctx, titleLine, smallFont);
+        var fcSize = Measure(ctx, fcLine, smallFont);
+        const float lineGap = 1f;
+
+        var total = nameSize.Y
+            + (titleLine.Length > 0 ? titleSize.Y + lineGap : 0f)
+            + (fcLine.Length > 0 ? fcSize.Y + lineGap : 0f);
+        var anchor = Gfx.Floor(screen + s.NameOnlyOffset * scale);
+        var y = anchor.Y - total;
+
         var color = isNpc
             ? s.NameOnlyOwnNpcColor ? s.NameOnlyNpcColor : ctx.Style.Friendly
             : s.NameOnlyJobColor ? UnitBar.UnitColor(ctx.Style, unit) : s.NameOnlyPlayerColor;
+
+        // Hover first (so the highlight shows this frame), over the whole block.
+        var width = Math.Max(nameSize.X, Math.Max(titleSize.X, fcSize.X));
+        var blockMin = new Vector2(anchor.X - width / 2f, y);
+        var blockMax = new Vector2(anchor.X + width / 2f, anchor.Y);
+        var hovered = s.Interactive && s.NameOnlyInteractive && ctx.Input.HandleUnit(blockMin, blockMax, unit.Object, ctx.General);
         if ((s.HighlightTarget && isTarget) || hovered)
         {
             color = Vector4.Lerp(color, Vector4.One, 0.35f);
         }
 
-        Gfx.Text(ctx, text, anchor, TextAlign.Center, color);
+        if (titleLine.Length > 0 && titleAbove)
+        {
+            DrawLine(ctx, titleLine, smallFont, anchor.X, ref y, titleSize.Y + lineGap, s.TitleColor);
+        }
+
+        var nameTop = y;
+        DrawLine(ctx, nameLine, nameFont, anchor.X, ref y, nameSize.Y + lineGap, color);
+
+        if (titleLine.Length > 0 && !titleAbove)
+        {
+            DrawLine(ctx, titleLine, smallFont, anchor.X, ref y, titleSize.Y + lineGap, s.TitleColor);
+        }
+
+        if (fcLine.Length > 0)
+        {
+            DrawLine(ctx, fcLine, smallFont, anchor.X, ref y, fcSize.Y + lineGap, s.TitleColor);
+        }
+
+        // Job icon and head marker to the left of the name line.
+        var lineMin = new Vector2(MathF.Floor(anchor.X - nameSize.X / 2f), nameTop);
+        if (s.NameOnlyJobIcon && !isNpc && unit.JobId > 0)
+        {
+            var iconSize = MathF.Round(nameSize.Y);
+            var iconMin = new Vector2(lineMin.X - iconSize - 3f, nameTop);
+            var texture = Svc.TextureProvider.GetFromGameIcon(new GameIconLookup(62100 + unit.JobId)).GetWrapOrEmpty();
+            ctx.DrawList.AddImage(texture.Handle, iconMin, iconMin + new Vector2(iconSize), Vector2.Zero, Vector2.One, ctx.Col(Vector4.One));
+            lineMin.X = iconMin.X;
+        }
+
+        if (marker != 0 && s.Marker.Enabled)
+        {
+            var lineSize = new Vector2(anchor.X + nameSize.X / 2f - lineMin.X, nameSize.Y);
+            MarkerIcon.Draw(ctx, s.Marker, marker, lineMin, lineSize);
+        }
+    }
+
+    private static Vector2 Measure(DrawContext ctx, string text, int fontSize)
+    {
+        if (text.Length == 0)
+        {
+            return Vector2.Zero;
+        }
+
+        using var font = ctx.Fonts.Push(fontSize);
+        return Dalamud.Bindings.ImGui.ImGui.CalcTextSize(text);
+    }
+
+    private static void DrawLine(DrawContext ctx, string text, int fontSize, float centreX, ref float y, float advance, Vector4 color)
+    {
+        using var font = ctx.Fonts.Push(fontSize);
+        var size = Dalamud.Bindings.ImGui.ImGui.CalcTextSize(text);
+        Gfx.Text(ctx, text, new Vector2(centreX, MathF.Floor(y + size.Y / 2f)), TextAlign.Center, color);
+        y += advance;
     }
 }

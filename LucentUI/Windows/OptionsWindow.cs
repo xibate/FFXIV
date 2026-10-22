@@ -867,6 +867,8 @@ public sealed partial class OptionsWindow : Window
             {
                 Ui.Toggle("Clickable", ref s.Interactive, "Click to target, right-click menu, mouseover and mouseover casting.");
             }
+
+            DrawMarker(title + " Marker", s.Marker);
         }
 
         if (Ui.Tab(tab, 1))
@@ -977,6 +979,8 @@ public sealed partial class OptionsWindow : Window
             Ui.Color("Cleansable colour", ref s.CleansableColor);
             Ui.Toggle("Ready check", ref s.ShowReadyCheck);
             Ui.Slider("Tracker font size", ref s.TrackerFontSize, 0, 40, "Raise and invulnerability text. 0 uses the HUD font size.");
+
+            DrawMarker("Party Marker", s.Marker);
         }
 
         if (Ui.Tab(tab, 4))
@@ -989,6 +993,22 @@ public sealed partial class OptionsWindow : Window
         {
             DrawVisibility("Party", s.Visibility);
         }
+    }
+
+    /// <summary>Head marker (attack, bind, ignore, shapes) placement on a frame or nameplate.</summary>
+    private static void DrawMarker(string title, MarkerSettings s)
+    {
+        Ui.Card(title, "The head marker (attack, bind, ignore, square...) placed on the unit.");
+        Ui.Toggle("Show marker", ref s.Enabled);
+        if (!s.Enabled)
+        {
+            return;
+        }
+
+        Ui.Enum("Position", ref s.Anchor, "The point of the frame the icon sits on.");
+        Ui.Toggle("Outside the frame", ref s.Outside, "Just outside the frame at that point instead of centred on it.");
+        Ui.Slider("Size", ref s.Size, 8f, 64f, "%.0f");
+        Ui.Offset("Offset", ref s.Offset);
     }
 
     /// <summary>Settings for buff or debuff icons on member frames (party, alliance).</summary>
@@ -1094,6 +1114,7 @@ public sealed partial class OptionsWindow : Window
         {
             DrawStatusIcons("Alliance Buffs", s.Buffs, false, "Buff icons on alliance members (only while they are near enough to be loaded).");
             DrawStatusIcons("Alliance Debuffs", s.Debuffs, true, "Debuff icons on alliance members (only while they are near enough to be loaded).");
+            DrawMarker("Alliance Marker", s.Marker);
         }
 
         if (Ui.Tab(tab, 3))

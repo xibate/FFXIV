@@ -472,7 +472,7 @@ public sealed partial class OptionsWindow
         ModuleSwitch("Nameplates", ref Plugin.Profiles.Current.Modules.Nameplates, "Off by default because it draws over the game world.");
         CopyAndReset("nameplates", s, () => new Profile().Nameplates);
         ElementPreview("nameplates");
-        var tab = Ui.Tabs("nameplates", "Units", "Bars", "Text", "Cast Bar");
+        var tab = Ui.Tabs("nameplates", "Units", "Bars", "Text", "Icons", "Cast Bar");
 
         if (Ui.Tab(tab, 0))
         {
@@ -488,6 +488,11 @@ public sealed partial class OptionsWindow
             Ui.Enum("Game nameplates", ref s.GameNameplates, "HideReplaced removes the game's name from units that get a LucentUI plate. HideAll hides the game's nameplates completely, including NPC names and quest markers.");
             Ui.Toggle("Click to target", ref s.Interactive, "Left-click targets, right-click opens the menu, and the plate works as a mouseover target.");
             Ui.Slider("Vertical offset", ref s.YOffset, -100f, 100f, "%.0f");
+
+            Ui.Card("Layers & Overlap", "Keeps names readable when plates, icons and frames overlap.");
+            Ui.Toggle("Text on top", ref s.TextOnTop, "Names and other plate text are drawn above every plate's bars and icons, so nothing covers them.");
+            Ui.Enum("Nameplate layer", ref s.Layer, "Below HUD keeps plates under your unit and party frames, like the game. Above HUD draws them over everything.");
+            Ui.Toggle("Stack overlapping plates", ref s.Stacking, "Enemy health-bar plates that would overlap a nearer one move up out of the way.");
         }
 
         if (Ui.Tab(tab, 1))
@@ -500,6 +505,24 @@ public sealed partial class OptionsWindow
             Ui.Toggle("Highlight target", ref s.HighlightTarget);
             Ui.Slider("Target size", ref s.TargetScale, 1f, 1.5f, "%.2fx");
             Ui.Percent("Other plates' opacity", ref s.NonTargetAlpha, "Fades every plate except your target's while you have one.");
+            Ui.Toggle("Target arrows", ref s.TargetArrows, "Arrows beside your target's plate.");
+            if (s.TargetArrows)
+            {
+                Ui.Color("Arrow colour", ref s.TargetArrowColor);
+            }
+
+            Ui.Slider("Execute line", ref s.ExecutePercent, 0, 99, "A line on enemy health bars at this health %. 0 turns it off.");
+
+            Ui.Card("Threat Colours", "Colours enemy health bars by your threat, like EllesmereUI. Tanks: green with aggro, yellow when close, red without. Others: red when an enemy is on you, yellow when you are close to pulling it.");
+            Ui.Enum("Show threat colours", ref s.Threat, "In Duties only colours plates inside dungeons, trials and raids.");
+            if (s.Threat != ThreatMode.Off)
+            {
+                Ui.Color("Tank: has aggro", ref s.TankHasAggro);
+                Ui.Color("Tank: losing aggro", ref s.TankLosingAggro);
+                Ui.Color("Tank: no aggro", ref s.TankNoAggro);
+                Ui.Color("Others: has aggro", ref s.DpsHasAggro);
+                Ui.Color("Others: near aggro", ref s.DpsNearAggro);
+            }
         }
 
         if (Ui.Tab(tab, 2))
@@ -523,9 +546,38 @@ public sealed partial class OptionsWindow
             {
                 Ui.Color("NPC name colour", ref s.NameOnlyNpcColor);
             }
+
+            Ui.Toggle("Job icon", ref s.NameOnlyJobIcon, "A job icon to the left of player names.");
+            Ui.Toggle("Clickable", ref s.NameOnlyInteractive, "Click a name to target it (with Click to target on).");
+
+            Ui.Card("Titles & Free Company", "Titles and free company tags on name-only plates, as the game shows them. Bar plates can use the {title} and {fc} tags in their text.");
+            Ui.Toggle("Show titles", ref s.ShowTitle, "Player titles and NPC titles such as «Merchant».");
+            if (s.ShowTitle)
+            {
+                Ui.Enum("Title position", ref s.TitlePosition, "Game puts each title above or below the name like the game does.");
+            }
+
+            Ui.Toggle("Show free company", ref s.ShowFreeCompany, "The «TAG» of a player's free company.");
+            if (s.ShowFreeCompany)
+            {
+                Ui.Enum("Free company position", ref s.FreeCompanyPosition);
+            }
+
+            if (s.ShowTitle || s.ShowFreeCompany)
+            {
+                Ui.Slider("Title & tag font size", ref s.TitleFontSize, 0, 40, "0 uses the small font size from the Style page.");
+                Ui.Color("Title & tag colour", ref s.TitleColor);
+            }
         }
 
         if (Ui.Tab(tab, 3))
+        {
+            DrawStatusIcons("Plate Debuffs", s.Debuffs, true, "Debuff icons on health-bar plates. By default only yours, like EllesmereUI.");
+            DrawStatusIcons("Plate Buffs", s.Buffs, false, "Buff icons on health-bar plates, e.g. enemy buffs you may want to dispel or wait out.");
+            DrawMarker("Plate Marker", s.Marker);
+        }
+
+        if (Ui.Tab(tab, 4))
         {
             Ui.Card("Plate Cast Bar");
             Ui.Toggle("Cast bar", ref s.ShowCast);
@@ -554,6 +606,7 @@ public sealed partial class OptionsWindow
 
         DrawTextSlot("Enemy List Left Text", ref s.LeftText, s.LeftStyle);
         DrawTextSlot("Enemy List Right Text", ref s.RightText, s.RightStyle);
+        DrawMarker("Enemy List Marker", s.Marker);
 
         DrawVisibility("Enemy List", s.Visibility);
     }

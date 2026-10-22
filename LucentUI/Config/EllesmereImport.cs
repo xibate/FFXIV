@@ -548,6 +548,22 @@ public static class EllesmereImport
                 var frameTexture = TextureName(Get(frame, "healthBarTexture"));
                 s.Texture = frameTexture.Equals(globalTexture, StringComparison.OrdinalIgnoreCase) ? string.Empty : frameTexture;
                 s.Enabled = Bool(Get(enabled, d.EuiKey)) ?? true;
+                if (Bool(Get(frame, "raidMarkerEnabled")) is { } markerOn)
+                {
+                    s.Marker.Enabled = markerOn;
+                    s.Marker.Anchor = (Str(Get(frame, "raidMarkerAlign")) ?? "center") switch
+                    {
+                        "left" => IconAnchor.TopLeft,
+                        "right" => IconAnchor.TopRight,
+                        _ => IconAnchor.Top,
+                    };
+                    s.Marker.Outside = false;
+                    s.Marker.Size = MathF.Round((float)(Num(Get(frame, "raidMarkerSize")) ?? 24) * scale);
+                    s.Marker.Offset = new Vector2(
+                        MathF.Round((float)(Num(Get(frame, "raidMarkerX")) ?? 0) * scale),
+                        -MathF.Round((float)(Num(Get(frame, "raidMarkerY")) ?? 0) * scale));
+                }
+
                 if (Get(frame, "showPlayerAbsorb") is { } absorbStyle)
                 {
                     s.ShowShield = ShieldStyle(absorbStyle) != null;
@@ -568,6 +584,38 @@ public static class EllesmereImport
             UnitCastBars(uf, positions);
             Auras(Table(Get(uf, "playerAuraBars")));
             TargetAuras(Table(Get(uf, "target")));
+        }
+
+        /// <summary>EllesmereUI anchor names ("topleft", "center", ...); null for "none" or unknown.</summary>
+        private static IconAnchor? AnchorFrom(string? name) => name?.ToLowerInvariant() switch
+        {
+            "topleft" => IconAnchor.TopLeft,
+            "top" => IconAnchor.Top,
+            "topright" => IconAnchor.TopRight,
+            "left" => IconAnchor.Left,
+            "center" or "centre" => IconAnchor.Center,
+            "right" => IconAnchor.Right,
+            "bottomleft" => IconAnchor.BottomLeft,
+            "bottom" => IconAnchor.Bottom,
+            "bottomright" => IconAnchor.BottomRight,
+            _ => null,
+        };
+
+        /// <summary>Raid frame head marker: showRaidMarker, raidMarkerPosition, raidMarkerSize, raidMarkerOffsetX/Y.</summary>
+        private void ImportMarker(Func<string, object?> value, MarkerSettings target)
+        {
+            if (Bool(value("showRaidMarker")) is not { } show)
+            {
+                return;
+            }
+
+            target.Enabled = show;
+            target.Anchor = AnchorFrom(Str(value("raidMarkerPosition"))) ?? IconAnchor.Center;
+            target.Outside = false;
+            target.Size = MathF.Round((float)(Num(value("raidMarkerSize")) ?? 16) * scale);
+            target.Offset = new Vector2(
+                MathF.Round((float)(Num(value("raidMarkerOffsetX")) ?? 0) * scale),
+                -MathF.Round((float)(Num(value("raidMarkerOffsetY")) ?? 0) * scale));
         }
 
         /// <summary>EllesmereUI absorb style ("clean", "striped", "none", or an old true/false); null means no shields.</summary>
@@ -1198,7 +1246,73 @@ public static class EllesmereImport
                 Offset = new Vector2(MathF.Round((float)(Num(Get(np, "castNameOffsetX")) ?? 0) * scale), MathF.Round(-(float)(Num(Get(np, "castNameOffsetY")) ?? 0) * scale)),
             };
 
+            PlateIcons(np, s);
             converted.Add("nameplates");
+        }
+
+        /// <summary>Plate debuffs, buffs, raid marker, target arrows, threat colours and the friendly title / guild line.</summary>
+        private void PlateIcons(Dictionary<object, object?> np, NameplateSettings s)
+        {
+            // Text above the bar: icons on top go above it.
+            var textAbove = Math.Min(0f, Math.Min(s.LeftStyle.Offset.Y, s.RightStyle.Offset.Y));
+
+            void Slot(StatusIconSettings icons, string prefix, string defaultSlot)
+            {
+                var slot = Str(Get(np, prefix + "Slot")) ?? defaultSlot;
+                if (slot == "none")
+                {
+                    icons.Enabled = false;
+                    return;
+                }
+
+                icons.Anchor = AnchorFrom(slot) ?? IconAnchor.Top;
+                icons.Outside = icons.Anchor != IconAnchor.Center;
+                icons.Size = MathF.Round((float)(Num(Get(np, prefix + "IconSize")) ?? icons.Size) * scale);
+                icons.Spacing = Math.Max(0, (int)MathF.Round((float)(Num(Get(np, prefix + "Spacing")) ?? icons.Spacing) * scale));
+                var up = (float)(Num(Get(np, prefix + "YOffset")) ?? 0);
+                var onTop = icons.Anchor is IconAnchor.Top or IconAnchor.TopLeft or IconAnchor.TopRight;
+                icons.Offset = new Vector2(0, (onTop ? textAbove : 0f) - MathF.Round(up * scale));
+            }
+
+            Slot(s.Debuffs, "debuff", "top");
+            s.Debuffs.OnlyMine = !(Bool(Get(np, "showAllDebuffs")) ?? false);
+            Slot(s.Buffs, "buff", "left");
+            s.Buffs.Enabled = false;
+
+            // Raid marker on bar plates, and EllesmereUI's marker beside the name.
+            var markerPos = Str(Get(np, "raidMarkerPos")) ?? "topright";
+            var nameMarker = Bool(Get(np, "nameRaidMarkerEnabled")) ?? false;
+            s.Marker.Enabled = markerPos != "none" || nameMarker;
+            s.Marker.Anchor = markerPos != "none" ? AnchorFrom(markerPos) ?? IconAnchor.Left : IconAnchor.Left;
+            s.Marker.Outside = s.Marker.Anchor != IconAnchor.Center;
+            var markerSize = markerPos != "none" ? Num(Get(np, "raidMarkerSize")) : Num(Get(np, "nameRaidMarkerSize"));
+            s.Marker.Size = MathF.Round((float)(markerSize ?? 24) * scale);
+
+            s.TargetArrows = Bool(Get(np, "showTargetArrows")) ?? false;
+
+            s.Threat = (Str(Get(np, "threatColorMode")) ?? "instances") switch
+            {
+                "never" => ThreatMode.Off,
+                "always" or "alwaysSolo" => ThreatMode.Always,
+                _ => ThreatMode.InDuties,
+            };
+            s.TankHasAggro = Color(Get(np, "tankHasAggro")) ?? s.TankHasAggro;
+            s.TankLosingAggro = Color(Get(np, "tankLosingAggro")) ?? s.TankLosingAggro;
+            s.TankNoAggro = Color(Get(np, "tankNoAggro")) ?? s.TankNoAggro;
+            s.DpsHasAggro = Color(Get(np, "dpsHasAggro")) ?? s.DpsHasAggro;
+            s.DpsNearAggro = Color(Get(np, "dpsNearAggro")) ?? s.DpsNearAggro;
+
+            // Friendly names: "title" sits with the name, "guild" is a line below it.
+            var below = Str(Get(np, "friendlyBelowName")) ?? "none";
+            s.ShowTitle = below is "title" or "both";
+            s.TitlePosition = TitlePlacement.Game;
+            s.ShowFreeCompany = below is "guild" or "both";
+            s.FreeCompanyPosition = FreeCompanyPlacement.Below;
+            s.TitleFontSize = (int)MathF.Round((float)(Num(Get(np, "friendlyBelowNameSize")) ?? 12) * scale);
+            if (Color(Get(np, "friendlyBelowNameColor")) is { } belowColor)
+            {
+                s.TitleColor = belowColor;
+            }
         }
 
         private TextStyle PlateTextStyle(Dictionary<object, object?> np, string prefix, float baseY) => new()
@@ -1259,6 +1373,7 @@ public static class EllesmereImport
             s.ShowWhenSolo = Bool(Get(raid, "partyShowWhenSolo")) ?? Bool(Get(raid, "showWhenSolo")) ?? false;
             s.IncludePlayer = !(Bool(Get(raid, "partyHideSelf")) ?? false);
             s.Texture = TextureName(PartyValue("healthBarTexture"));
+            ImportMarker(PartyValue, s.Marker);
             if (PartyValue("absorbStyle") != null)
             {
                 s.ShowShield = ShieldStyle(PartyValue("absorbStyle")) != null;
@@ -1367,6 +1482,7 @@ public static class EllesmereImport
             var s = P.Alliance;
             object? RaidValue(string key) => Get(raid, key);
 
+            ImportMarker(RaidValue, s.Marker);
             if (RaidValue("absorbStyle") != null)
             {
                 s.ShowShield = ShieldStyle(RaidValue("absorbStyle")) != null;

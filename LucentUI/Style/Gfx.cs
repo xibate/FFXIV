@@ -195,6 +195,11 @@ public static class Gfx
         pos = Floor(pos);
 
         var dl = ctx.DrawList;
+        if (ctx.TextChannel >= 0)
+        {
+            dl.ChannelsSetCurrent(ctx.TextChannel);
+        }
+
         if (ctx.Style.TextOutline)
         {
             var outline = ctx.Col(new Vector4(0, 0, 0, color.W * 0.85f));
@@ -205,6 +210,10 @@ public static class Gfx
         }
 
         dl.AddText(pos, ctx.Col(color), text);
+        if (ctx.TextChannel >= 0)
+        {
+            dl.ChannelsSetCurrent(ctx.BaseChannel);
+        }
     }
 
     /// <summary>Draws text with its own size, offset and colour.</summary>

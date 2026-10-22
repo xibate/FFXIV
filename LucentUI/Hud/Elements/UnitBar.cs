@@ -41,6 +41,15 @@ public struct UnitBarOptions
 
     /// <summary>Bar texture name; null or empty uses the profile's.</summary>
     public string? Texture;
+
+    /// <summary>Head marker on the frame; null for none.</summary>
+    public MarkerSettings? Marker;
+
+    /// <summary>Shows a sample marker on this frame in previews.</summary>
+    public bool PreviewMarker;
+
+    /// <summary>Overrides the health fill colour (e.g. threat colours).</summary>
+    public Vector4? FillColor;
 }
 
 /// <summary>Draws a health (+ optional power) bar for a unit. Shared by unit frames and party frames.</summary>
@@ -110,6 +119,11 @@ public static class UnitBar
         // Health
         var mode = o.ColorMode == HealthColorMode.Inherit ? s.HealthColors : o.ColorMode;
         var (fill, background) = HealthColors(s, unit, mode);
+        if (o.FillColor is { } fillOverride && !unit.IsDead)
+        {
+            fill = fillOverride;
+        }
+
         if (background.HasValue)
         {
             Gfx.Fill(ctx, healthMin, healthMax, background.Value, allowGradient: false);
@@ -172,6 +186,17 @@ public static class UnitBar
         var center = TextTags.Format(o.CenterText, unit, abbreviate);
         var right = unit.IsDead ? "Dead" : TextTags.Format(o.RightText, unit, abbreviate);
         Gfx.TextRow(ctx, textMin, healthMax, (left, o.LeftStyle), (center, o.CenterStyle), (right, o.RightStyle), UnitColor(s, unit));
+
+        if (o.Marker is { Enabled: true } marker)
+        {
+            var markerIcon = Markers.IconFor(unit.Object);
+            if (markerIcon == 0 && o.PreviewMarker && ctx.Preview && unit.Object == null)
+            {
+                markerIcon = Markers.SampleIcon;
+            }
+
+            MarkerIcon.Draw(ctx, marker, markerIcon, pos, size);
+        }
 
         ctx.Alpha = savedAlpha;
     }

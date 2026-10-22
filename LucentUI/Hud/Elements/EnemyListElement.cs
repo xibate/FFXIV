@@ -62,6 +62,8 @@ public sealed unsafe class EnemyListElement : HudElement
                 RightText = s.RightText,
                 LeftStyle = s.LeftStyle,
                 RightStyle = s.RightStyle,
+                Marker = s.Marker,
+                PreviewMarker = i == 0,
                 ColorMode = HealthColorMode.Inherit,
                 ShowShield = false,
                 Highlight = isTarget,

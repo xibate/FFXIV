@@ -22,6 +22,12 @@ public sealed class DrawContext
     /// <summary>True in Unlock Mode: elements draw sample data when the real unit is missing.</summary>
     public bool Preview;
 
+    /// <summary>Draw-list channel all text goes to (so it stays above bars and icons); -1 draws text in place.</summary>
+    public int TextChannel = -1;
+
+    /// <summary>The channel drawing returns to after text when <see cref="TextChannel"/> is used.</summary>
+    public int BaseChannel;
+
     /// <summary>Opacity multiplier applied to every colour.</summary>
     public float Alpha = 1f;
 

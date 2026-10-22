@@ -234,6 +234,7 @@ public sealed class UnitFrameSettings
     public bool CustomBackground = false;
     public Vector4 Background = new(0.05f, 0.05f, 0.06f, 0.85f);
     public IconSide JobIcon = IconSide.None;
+    public MarkerSettings Marker = new() { Anchor = IconAnchor.Left, Outside = true, Size = 24f };
     public VisibilitySettings Visibility = new();
 }
 
@@ -325,6 +326,7 @@ public sealed class PartySettings
     public bool CleansableOnlyIfICanCleanse = true;
     public Vector4 CleansableColor = Colors.Rgb(0xB65CE6);
     public bool ShowReadyCheck = true;
+    public MarkerSettings Marker = new() { Anchor = IconAnchor.Center, Size = 18f };
 
     /// <summary>Size of the raise and invulnerability text; 0 uses the HUD font size.</summary>
     public int TrackerFontSize = 0;
@@ -595,6 +597,20 @@ public enum IconShape
     StyleDefault,
 }
 
+/// <summary>Head marker (attack 1, bind, square...) on a frame or nameplate.</summary>
+public sealed class MarkerSettings
+{
+    public bool Enabled = true;
+
+    /// <summary>The point of the frame the icon is centred on.</summary>
+    public IconAnchor Anchor = IconAnchor.Top;
+
+    /// <summary>Moves the icon just outside the frame at its anchor instead of centring it on the edge.</summary>
+    public bool Outside = false;
+    public float Size = 20f;
+    public Vector2 Offset = Vector2.Zero;
+}
+
 /// <summary>Buff or debuff icons on a party or alliance member.</summary>
 public sealed class StatusIconSettings
 {
@@ -697,6 +713,77 @@ public sealed class NameplateSettings
     /// <summary>Click a plate to target, right-click for the menu, and use it as a mouseover target.</summary>
     public bool Interactive = true;
     public float YOffset = 0f;
+
+    // Name-only plates: titles, free company tags, job icon.
+    public bool ShowTitle = false;
+    public TitlePlacement TitlePosition = TitlePlacement.Game;
+
+    /// <summary>Title text size; 0 uses the small font size.</summary>
+    public int TitleFontSize = 0;
+    public Vector4 TitleColor = new(1f, 1f, 1f, 0.75f);
+    public bool ShowFreeCompany = false;
+    public FreeCompanyPlacement FreeCompanyPosition = FreeCompanyPlacement.AfterName;
+    public bool NameOnlyJobIcon = false;
+
+    /// <summary>Name-only plates can be clicked (with <see cref="Interactive"/> on).</summary>
+    public bool NameOnlyInteractive = true;
+
+    // Icons on health-bar plates.
+    public StatusIconSettings Debuffs = new() { OnlyMine = true, Max = 6, Size = 24f, Anchor = IconAnchor.Top, Outside = true, Offset = new Vector2(0, -16), Border = AuraBorder.ByType };
+    public StatusIconSettings Buffs = new() { Enabled = false, Max = 4, Size = 20f, Anchor = IconAnchor.Right, Outside = true };
+    public MarkerSettings Marker = new() { Anchor = IconAnchor.Left, Outside = true, Size = 22f };
+
+    // Layers.
+
+    /// <summary>Names and other text go above every plate's bars and icons, so they are never covered.</summary>
+    public bool TextOnTop = true;
+    public NameplateLayer Layer = NameplateLayer.BelowHud;
+
+    /// <summary>Moves enemy health-bar plates apart when they overlap.</summary>
+    public bool Stacking = false;
+
+    // Threat colours on enemy health bars.
+    public ThreatMode Threat = ThreatMode.Off;
+    public Vector4 TankHasAggro = new(0.345f, 0.875f, 0.298f, 1f);
+    public Vector4 TankLosingAggro = new(1f, 0.933f, 0.431f, 1f);
+    public Vector4 TankNoAggro = new(0.996f, 0.298f, 0.31f, 1f);
+    public Vector4 DpsHasAggro = new(0.996f, 0.298f, 0.31f, 1f);
+    public Vector4 DpsNearAggro = new(1f, 0.933f, 0.431f, 1f);
+
+    // Target indicators.
+    public bool TargetArrows = false;
+    public Vector4 TargetArrowColor = Vector4.One;
+
+    /// <summary>A line on enemy health bars at this health percentage (e.g. for execute phases); 0 for none.</summary>
+    public int ExecutePercent = 0;
+}
+
+public enum TitlePlacement
+{
+    /// <summary>Above or below the name, wherever the game puts that title.</summary>
+    Game,
+    Above,
+    Below,
+}
+
+public enum FreeCompanyPlacement
+{
+    AfterName,
+    Below,
+}
+
+public enum NameplateLayer
+{
+    /// <summary>Under the HUD's frames, like the game's own nameplates.</summary>
+    BelowHud,
+    AboveHud,
+}
+
+public enum ThreatMode
+{
+    Off,
+    InDuties,
+    Always,
 }
 
 /// <summary>The two other alliance parties in 24-player content.</summary>
@@ -732,6 +819,7 @@ public sealed class AllianceSettings
 
     public StatusIconSettings Buffs = new() { Enabled = false, OnlyMine = true, Max = 2, Size = 16f, Anchor = IconAnchor.BottomRight };
     public StatusIconSettings Debuffs = new() { Max = 2, Size = 16f, Anchor = IconAnchor.Right, Border = AuraBorder.ByType };
+    public MarkerSettings Marker = new() { Anchor = IconAnchor.Center, Size = 16f };
     public VisibilitySettings Visibility = new();
 }
 
@@ -748,6 +836,7 @@ public sealed class EnemyListSettings
     public string RightText = "{hp:pct}%";
     public TextStyle LeftStyle = new();
     public TextStyle RightStyle = new();
+    public MarkerSettings Marker = new() { Anchor = IconAnchor.Right, Outside = true, Size = 18f };
     public VisibilitySettings Visibility = new();
 }
 
