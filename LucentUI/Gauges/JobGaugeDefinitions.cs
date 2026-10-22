@@ -59,9 +59,9 @@ public static class JobGaugeDefinitions
         // ── Healers ──────────────────────────────────────────────────────────
         [24] = new GaugePart[] // WHM
         {
-            new("lily", "Lilies", GaugeKind.Stacks, LightBlue, c => Stacks(c.Gauge<WHMGauge>().Lily, 3), 52),
+            new("lily", "Lilies", GaugeKind.Stacks, LightBlue, c => Stacks(c.Gauge<WHMGauge>().Lily, 3), 52, Shape: GaugeShape.Petal),
             new("lilyTimer", "Next Lily", GaugeKind.Timer, White, c => TimerMs(c.Gauge<WHMGauge>().LilyTimer, 20), 52),
-            new("bloodLily", "Blood Lily", GaugeKind.Stacks, Red, c => Stacks(c.Gauge<WHMGauge>().BloodLily, 3), 74),
+            new("bloodLily", "Blood Lily", GaugeKind.Stacks, Red, c => Stacks(c.Gauge<WHMGauge>().BloodLily, 3), 74, Shape: GaugeShape.Petal),
             new("dia", "Dia", GaugeKind.Timer, LightBlue, c => c.Dot(30, 143, 144, 1871), 4),
             new("mana", "MP", GaugeKind.Resource, Blue, c => c.Mana(), 1, false),
         },
@@ -115,8 +115,8 @@ public static class JobGaugeDefinitions
         },
         [34] = new GaugePart[] // SAM
         {
-            new("kenki", "Kenki", GaugeKind.Resource, Red, c => Resource(c.Gauge<SAMGauge>().Kenki, 100), 52),
-            new("sen", "Sen", GaugeKind.Pips, White, c => SamSen(c.Gauge<SAMGauge>()), 30),
+            new("kenki", "Kenki", GaugeKind.Resource, Red, c => Resource(c.Gauge<SAMGauge>().Kenki, 100), 52, Segments: 4),
+            new("sen", "Sen", GaugeKind.Pips, White, c => SamSen(c.Gauge<SAMGauge>()), 30, Shape: GaugeShape.Diamond),
             new("meditation", "Meditation", GaugeKind.Stacks, Orange, c => Stacks(c.Gauge<SAMGauge>().MeditationStacks, 3), 80),
             new("fugetsu", "Fugetsu", GaugeKind.Timer, LightBlue, c => c.Buff(40, 1298), 4),
             new("fuka", "Fuka", GaugeKind.Timer, Green, c => c.Buff(40, 1299), 18),

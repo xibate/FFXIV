@@ -364,6 +364,9 @@ public sealed class JobGaugeSettings
     public int Spacing = 3;
     public bool ShowText = true;
 
+    /// <summary>Flat bars (LucentUI) or the game's gauge shapes drawn flat (hybrid).</summary>
+    public GaugeLook Look = GaugeLook.Flat;
+
     /// <summary>Size of the numbers on the gauge bars; 0 uses the small font size.</summary>
     public int TextFontSize = 0;
     public bool HideEmptyTimers = true;
@@ -372,6 +375,15 @@ public sealed class JobGaugeSettings
     public Dictionary<string, GaugePartSettings> Parts = new();
 
     public VisibilitySettings Visibility = new();
+}
+
+public enum GaugeLook
+{
+    /// <summary>Flat bars and square pips.</summary>
+    Flat,
+
+    /// <summary>Angled bars split at spending points, diamonds, orbs and petals, with a soft glow.</summary>
+    Hybrid,
 }
 
 public enum BarAlign

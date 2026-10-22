@@ -15,7 +15,50 @@ public sealed class JobGaugeElement : HudElement
 
     public override string Id => "jobgauge";
 
-    public override string Label => "Job Gauge";
+    /// <summary>The job and its gauge bars, e.g. "WAR: Beast Gauge, Surging Tempest +1".</summary>
+    public override string Label
+    {
+        get
+        {
+            var player = Svc.ObjectTable.LocalPlayer;
+            var parts = CurrentParts();
+            if (player == null || parts == null)
+            {
+                return "Job Gauge";
+            }
+
+            var profile = Plugin.Profiles.Current;
+            string? first = null, second = null;
+            var count = 0;
+            foreach (var part in parts)
+            {
+                var settings = PartSettings(profile, part);
+                if (!(settings?.Enabled ?? part.DefaultEnabled) || settings?.Detached == true || player.Level < part.MinLevel)
+                {
+                    continue;
+                }
+
+                count++;
+                if (first == null)
+                {
+                    first = part.Label;
+                }
+                else
+                {
+                    second ??= part.Label;
+                }
+            }
+
+            var job = Jobs.Get(player.ClassJob.RowId).Abbreviation;
+            return count switch
+            {
+                0 => $"{job} Gauge",
+                1 => $"{job}: {first}",
+                2 => $"{job}: {first}, {second}",
+                _ => $"{job}: {first}, {second} +{count - 2}",
+            };
+        }
+    }
 
     public override Vector2 DefaultPosition => new(-130, 330);
 
@@ -108,6 +151,12 @@ public sealed class JobGaugeElement : HudElement
 
     internal static void DrawPart(DrawContext ctx, JobGaugeSettings s, GaugePart part, GaugeValue value, Vector4 color, Vector2 pos, Vector2 size)
     {
+        if (s.Look == GaugeLook.Hybrid)
+        {
+            DrawHybridPart(ctx, s, part, value, color, pos, size);
+            return;
+        }
+
         switch (part.Kind)
         {
             case GaugeKind.Stacks:
@@ -129,6 +178,42 @@ public sealed class JobGaugeElement : HudElement
             default:
             {
                 var (min, max) = Gfx.FramedBar(ctx, pos, size, value.Hidden ? 0f : value.Fraction, color);
+                if (s.ShowText && !string.IsNullOrEmpty(value.Text))
+                {
+                    using var font = s.TextFontSize > 0 ? ctx.Fonts.Push(s.TextFontSize) : ctx.Fonts.PushSmall();
+                    Gfx.Text(ctx, value.Text, (min + max) / 2f, TextAlign.Center, Vector4.One);
+                }
+
+                break;
+            }
+        }
+    }
+
+    private static void DrawHybridPart(DrawContext ctx, JobGaugeSettings s, GaugePart part, GaugeValue value, Vector4 color, Vector2 pos, Vector2 size)
+    {
+        switch (part.Kind)
+        {
+            case GaugeKind.Stacks:
+            {
+                var max = Math.Max(1, (int)value.Max);
+                var filled = (int)value.Value;
+                var shape = part.Shape == GaugeShape.Auto ? GaugeShape.Orb : part.Shape;
+                HybridGauge.Shapes(ctx, pos, size, max, i => i < filled ? color : null, shape);
+                break;
+            }
+
+            case GaugeKind.Pips:
+            {
+                var count = Math.Max(1, (int)value.Max);
+                var shape = part.Shape == GaugeShape.Auto ? GaugeShape.Diamond : part.Shape;
+                HybridGauge.Shapes(ctx, pos, size, count, value.PipColor ?? (_ => null), shape);
+                break;
+            }
+
+            default:
+            {
+                var segments = part.Segments > 0 ? part.Segments : part.Kind == GaugeKind.Resource && (int)value.Max == 100 ? 2 : 0;
+                var (min, max) = HybridGauge.Bar(ctx, pos, size, value.Hidden ? 0f : value.Fraction, color, segments);
                 if (s.ShowText && !string.IsNullOrEmpty(value.Text))
                 {
                     using var font = s.TextFontSize > 0 ? ctx.Fonts.Push(s.TextFontSize) : ctx.Fonts.PushSmall();

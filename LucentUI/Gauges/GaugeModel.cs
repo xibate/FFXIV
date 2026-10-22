@@ -19,6 +19,16 @@ public enum GaugeKind
     Pips,
 }
 
+/// <summary>How stacks and pips are drawn in the hybrid gauge look.</summary>
+public enum GaugeShape
+{
+    /// <summary>Orbs for stacks, diamonds for pips.</summary>
+    Auto,
+    Diamond,
+    Orb,
+    Petal,
+}
+
 /// <summary>The state of one gauge part this frame.</summary>
 public struct GaugeValue
 {
@@ -35,7 +45,9 @@ public struct GaugeValue
 }
 
 /// <summary>One bar of a job gauge.</summary>
-public sealed record GaugePart(string Id, string Label, GaugeKind Kind, Vector4 DefaultColor, Func<GaugeContext, GaugeValue> Read, int MinLevel = 1, bool DefaultEnabled = true);
+/// <param name="Shape">Shape of stacks/pips in the hybrid look.</param>
+/// <param name="Segments">Spending points the hybrid bar is split at (e.g. 4 for Kenki's 25s); 0 picks: halves for 0-100 gauges.</param>
+public sealed record GaugePart(string Id, string Label, GaugeKind Kind, Vector4 DefaultColor, Func<GaugeContext, GaugeValue> Read, int MinLevel = 1, bool DefaultEnabled = true, GaugeShape Shape = GaugeShape.Auto, int Segments = 0);
 
 /// <summary>What a gauge part can read: the player, their target, their level and helpers.</summary>
 public sealed class GaugeContext

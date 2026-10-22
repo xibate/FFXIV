@@ -93,6 +93,7 @@ public sealed partial class OptionsWindow
         {
             Ui.Card("Job Gauge");
             Ui.Toggle("Enabled", ref s.Enabled);
+            Ui.Enum("Look", ref s.Look, "Flat: LucentUI's bars and square pips. Hybrid: the game's gauge shapes (angled bars split at spending points, diamonds, orbs, lily petals) drawn flat with a soft glow. The bar texture only applies to Flat.");
             Ui.Slider("Width", ref s.Width, 80f, 800f, "%.0f");
             Ui.Slider("Bar height", ref s.BarHeight, 4f, 60f, "%.0f");
             Ui.Slider("Spacing", ref s.Spacing, 0, 20);
